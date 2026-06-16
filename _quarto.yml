@@ -1,0 +1,49 @@
+project:
+  type: manuscript
+
+manuscript:
+  code-links: repo
+
+lang: en-US
+bibliography: references.bib
+csl: apa.csl
+
+format:
+  html:
+    highlight-style: a11y
+    code-link: true
+    code-fold: show
+    code-line-numbers: true
+    toc: true
+    keep-md: true
+    link-external-newwindow: true
+    anchor-sections: true
+    df-print: paged
+    comments:
+      hypothesis:
+        theme: classic
+        openSidebar: false
+        showHighlights: whenSidebarOpen
+    license: CC BY
+    csl: apa.csl
+    include-in-header:
+      - file: "includes/google_analytics.html"
+  #apaquarto-html:
+  #  toc: true
+  apaquarto-docx:
+    toc: false
+  #apaquarto-typst: # comment out Typst until bug is fixed: https://github.com/quarto-dev/quarto-cli/issues/11552
+  #  keep-typ: true
+  #  toc: false
+  #  list-of-figures: false
+  #  list-of-tables: false
+  #  papersize: "us-letter"
+  apaquarto-pdf:
+    documentmode: man
+    pdf-standard: ua-2
+    keep-tex: true
+  jats: default
+
+execute:
+  freeze: auto
+  error: true

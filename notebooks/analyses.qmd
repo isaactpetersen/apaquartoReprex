@@ -1,0 +1,107 @@
+---
+title: "Analyses"
+author: "Insert Author's Name Here"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+format:
+  html:
+    toc: true
+    toc-depth: 4
+    number-sections: true
+    number-depth: 4
+    code-fold: true
+    echo: true
+    error: true
+    embed-resources: true
+    self-contained-math: true
+---
+
+# Intro
+
+This is a starter file for your "Computational Notebook" script.
+This script be used to run analyses using the data file(s).
+This script should be separate from the "Prepare Data" file that is used for update the data file(s).
+Every time you run the "Computational Notebook" file with the exact same data, you should get the exact same findings (i.e., reproducibility).
+Thus, we keep the "Prepare Data script" separate from the "Computational Notebook" file so that you update the data only when you intend to.
+
+This document is a [Quarto](https://quarto.org) Notebook, which is an example of a computational notebook.
+Best practices for using Markdown are in the Lab Wiki here: <https://devpsylab.github.io/DataAnalysis/markdown.html#bestPractices>.
+Steps for working with computational notebooks are located in the Lab Wiki here: <https://devpsylab.github.io/DataAnalysis/markdown.html#computationalNotebook>
+
+This document is a [Quarto](https://quarto.org) Notebook.
+Quarto enables you to weave together content and executable code into a finished document.
+When you execute code within the notebook, the results appear beneath the code. 
+This allows you to share your analyses and results with others so that they can see the results in line with the code for reproducibility.
+Make sure to have only one sentence per line.
+For more information on the value of computational notebooks, see the article titled "[The Scientific Paper Is Obsolete](https://www.theatlantic.com/science/archive/2018/04/the-scientific-paper-is-obsolete/556676/)".
+To learn more about Quarto see <https://quarto.org>.
+
+# Preamble
+
+## Install Libraries
+
+```{r}
+#install.packages("remotes")
+#remotes::install_github("DevPsyLab/petersenlab")
+```
+
+## Load Libraries
+
+```{r}
+#| message: false
+#| warning: false
+
+library("petersenlab") #located here: https://github.com/DevPsyLab/petersenlab
+library("tidyverse")
+library("sysfonts")
+library("showtext")
+```
+
+## Import Font for Figures
+
+To use the fonts, download and install the fonts located here[^1]: <https://drive.google.com/drive/u/0/folders/1fqlrnEe7NFnWZoIrsHmr8ulDS4nhs-H3>
+
+[^1]: You may need to ask Dr. Petersen to get access to this file.
+
+```{r}
+#| include: false
+
+#Add Gotham Fonts
+#sysfonts::font_add(
+#  family = "Gotham",
+#  regular = "Gotham-Book.otf",
+#  bold = "Gotham-Bold.otf",
+#  italic = "Gotham-BookItalic.otf",
+#  bolditalic = "Gotham-BoldItalic.otf")
+#
+#showtext::showtext_auto()
+```
+
+## Load Data
+
+```{r}
+
+```
+
+# Specify Variables
+
+```{r}
+
+```
+
+# Analyses
+
+```{r}
+
+```
+
+# Session Info
+
+```{r}
+sessionInfo()
+```
+
+## Rstudio Version
+
+```{r}
+#rstudioapi::versionInfo()
+```

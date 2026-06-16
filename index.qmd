@@ -1,0 +1,119 @@
+---
+title: Full Title
+shorttitle: Short Title for Running Head
+author:
+  - given: Isaac T.
+    family: Petersen
+    orcid: 0000-0003-3072-6673
+    email: isaac-t-petersen@uiowa.edu
+    corresponding: true
+    role:
+      - conceptualization
+      - data curation
+      - analysis
+      - funding
+      - investigation
+      - methodology
+      - project administration
+      - resources
+      - software
+      - supervision
+      - validation
+      - visualization
+      - writing
+      - editing
+    affiliations:
+      - name: University of Iowa
+        department: Department of Psychological and Brain Sciences
+        address: G60 Psychological and Brain Sciences Building
+        city: Iowa City
+        region: IA
+        postal-code: 52242
+author-note:
+  status-changes: 
+    affiliation-change: ~
+    deceased: ~
+  disclosures:
+    study-registration: "The study hypotheses, methods, and analysis plan were
+      preregistered: [LINK]."
+    data-sharing: "The instruments, data, a data dictionary, analysis scripts,
+      and a computational notebook for the present study are published online: 
+      [LINK]."
+    related-report: ~
+    conflict-of-interest: "We have no conflicts of interest to disclose. The 
+      present study was approved by the University of Iowa Institutional Review
+      Board (Study #: INSERT). The authors complied with APA ethical standards
+      in the treatment of participants."
+    financial-support: "The study was funded by Grant INSERT from INSERT."
+    gratitude: "We acknowledge..."
+    authorship-agreements: ~
+  correspondence-note: "Correspondence concerning this article should be
+    addressed to Isaac T. Petersen, University of Iowa, G60 Psychological and
+    Brain Sciences Building, Iowa City, IA 52242.
+    Email: isaac-t-petersen@uiowa.edu"
+abstract: "INSERT ABSTRACT HERE."
+impact-statement: "INSERT IMPACT STATEMENT HERE."
+keywords:
+  - keyword1
+  - keyword2
+  - keyword3
+  - keyword4
+  - keyword5
+word-count: false
+floatsintext: true
+numbered-lines: false
+mask: false
+no-ampersand-parenthetical: false
+meta-analysis: false
+lang: en-US
+blank-lines-above-title: 2
+blank-lines-above-author-note: 2
+bibliography: references.bib
+date: last-modified
+citation:
+  #type: article-journal
+  #container-title: TITLE OF JOURNAL
+  #volume: INSERT
+  #issue: INSERT
+  #issued: YEAR
+  #doi: INSERT
+  url: https://devpsylab.github.io/QuartoManuscript/
+---
+
+<!-- The introduction should not have a level-1 heading such as Introduction. -->
+
+<!-- UNCOMMENT OUT THE LINE BELOW TO SHOW THE 'IN PROGRESS' NOTE -->
+<!-- ***NOTE: this manuscript is in progress of being drafted—it is incomplete.*** -->
+
+## Section in Introduction
+
+## Another Section in Introduction
+
+# Method
+
+## Participants
+
+## Procedure
+
+## Measures
+
+## Statistical Analysis
+
+# Results
+
+# Discussion
+
+## Limitations and Future Directions
+
+## Conclusion
+
+# References
+
+<!-- References will auto-populate in the refs div below -->
+
+::: {#refs}
+:::
+
+# This Section Is an Appendix {#apx-a}
+
+# Another Appendix {#apx-b}

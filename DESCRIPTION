@@ -1,0 +1,15 @@
+Package: placeholder
+Title: QuartoManuscript
+Version: 1.0.0
+Imports:
+  knitr,
+  rmarkdown,
+  tidyverse,
+  svglite,
+  sysfonts,
+  showtext,
+  downlit,
+  xml2,
+  petersenlab
+Remotes:
+  DevPsyLab/petersenlab
