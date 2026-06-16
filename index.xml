@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE article PUBLIC "-//NLM//DTD JATS (Z39.96) Journal Archiving
+and Interchange DTD v1.2 20190208//EN" "JATS-archivearticle1.dtd">
+
+<article xmlns:mml="http://www.w3.org/1998/Math/MathML" xmlns:xlink="http://www.w3.org/1999/xlink" dtd-version="1.2" article-type="other">
+
+<front>
+<journal-meta>
+<journal-id></journal-id>
+
+<journal-title-group>
+</journal-title-group>
+<issn></issn>
+
+<publisher>
+<publisher-name></publisher-name>
+</publisher>
+</journal-meta>
+
+
+<article-meta>
+
+
+<title-group>
+<article-title>Full Title</article-title>
+</title-group>
+
+<contrib-group>
+<contrib contrib-type="author" corresp="yes">
+<contrib-id contrib-id-type="orcid">0000-0003-3072-6673</contrib-id>
+<name>
+<surname>Petersen</surname>
+<given-names>Isaac T.</given-names>
+</name>
+<string-name>Isaac T. Petersen</string-name>
+
+<email>isaac-t-petersen@uiowa.edu</email>
+<role vocab="https://credit.niso.org" vocab-term="conceptualization" vocab-term-identifier="https://credit.niso.org/contributor-roles/conceptualization/">conceptualization</role>
+<role vocab="https://credit.niso.org" vocab-term="data
+curation" vocab-term-identifier="https://credit.niso.org/contributor-roles/data-curation/">data
+curation</role>
+<role vocab="https://credit.niso.org" vocab-term="formal
+analysis" vocab-term-identifier="https://credit.niso.org/contributor-roles/formal-analysis/">analysis</role>
+<role vocab="https://credit.niso.org" vocab-term="funding
+acquisition" vocab-term-identifier="https://credit.niso.org/contributor-roles/funding-acquisition/">funding</role>
+<role vocab="https://credit.niso.org" vocab-term="investigation" vocab-term-identifier="https://credit.niso.org/contributor-roles/investigation/">investigation</role>
+<role vocab="https://credit.niso.org" vocab-term="methodology" vocab-term-identifier="https://credit.niso.org/contributor-roles/methodology/">methodology</role>
+<role vocab="https://credit.niso.org" vocab-term="project
+administration" vocab-term-identifier="https://credit.niso.org/contributor-roles/project-administration/">project
+administration</role>
+<role vocab="https://credit.niso.org" vocab-term="resources" vocab-term-identifier="https://credit.niso.org/contributor-roles/resources/">resources</role>
+<role vocab="https://credit.niso.org" vocab-term="software" vocab-term-identifier="https://credit.niso.org/contributor-roles/software/">software</role>
+<role vocab="https://credit.niso.org" vocab-term="supervision" vocab-term-identifier="https://credit.niso.org/contributor-roles/supervision/">supervision</role>
+<role vocab="https://credit.niso.org" vocab-term="validation" vocab-term-identifier="https://credit.niso.org/contributor-roles/validation/">validation</role>
+<role vocab="https://credit.niso.org" vocab-term="visualization" vocab-term-identifier="https://credit.niso.org/contributor-roles/visualization/">visualization</role>
+<role vocab="https://credit.niso.org" vocab-term="writing – original
+draft" vocab-term-identifier="https://credit.niso.org/contributor-roles/writing-original-draft/">writing</role>
+<role vocab="https://credit.niso.org" vocab-term="writing – review &amp;
+editing" vocab-term-identifier="https://credit.niso.org/contributor-roles/writing-review-editing/">editing</role>
+<xref ref-type="aff" rid="aff-1">a</xref>
+<xref ref-type="corresp" rid="cor-1">&#x002A;</xref>
+</contrib>
+</contrib-group>
+<aff id="aff-1">
+<institution content-type="dept">Department of Psychological and Brain
+Sciences</institution>
+<institution-wrap>
+<institution>University of Iowa</institution>
+</institution-wrap>
+<addr-line>G60 Psychological and Brain Sciences Building</addr-line>
+<city>Iowa City</city>
+<state>IA</state>
+
+<postal-code>52242</postal-code>
+
+
+</aff>
+<author-notes>
+<corresp id="cor-1">isaac-t-petersen@uiowa.edu</corresp>
+</author-notes>
+
+<pub-date date-type="pub" publication-format="electronic" iso-8601-date="2026-06-10">
+<year>2026</year>
+<month>6</month>
+<day>10</day>
+</pub-date>
+
+
+
+
+
+
+
+<history></history>
+
+
+<abstract>
+INSERT ABSTRACT HERE.
+</abstract>
+<kwd-group kwd-group-type="author">
+<kwd>keyword1</kwd>
+<kwd>keyword2</kwd>
+<kwd>keyword3</kwd>
+<kwd>keyword4</kwd>
+<kwd>keyword5</kwd>
+</kwd-group>
+
+
+
+
+</article-meta>
+
+</front>
+
+<body>
+<sec id="section-in-introduction">
+  <title>Section in Introduction</title>
+</sec>
+<sec id="another-section-in-introduction">
+  <title>Another Section in Introduction</title>
+</sec>
+<sec id="method">
+  <title>Method</title>
+  <sec id="participants">
+    <title>Participants</title>
+  </sec>
+  <sec id="procedure">
+    <title>Procedure</title>
+  </sec>
+  <sec id="measures">
+    <title>Measures</title>
+  </sec>
+  <sec id="statistical-analysis">
+    <title>Statistical Analysis</title>
+  </sec>
+</sec>
+<sec id="results">
+  <title>Results</title>
+</sec>
+<sec id="discussion">
+  <title>Discussion</title>
+  <sec id="limitations-and-future-directions">
+    <title>Limitations and Future Directions</title>
+  </sec>
+  <sec id="conclusion">
+    <title>Conclusion</title>
+  </sec>
+</sec>
+<sec id="references">
+  <title>References</title>
+</sec>
+<sec id="apx-a">
+  <title>This Section Is an Appendix</title>
+</sec>
+<sec id="apx-b">
+  <title>Another Appendix</title>
+</sec>
+</body>
+
+<back>
+</back>
+
+<!-- (F2ED4C6E)[nb-1]:/home/runner/work/QuartoManuscript/QuartoManuscript/notebooks/descriptiveStatistics.qmd -->
+<!-- (F2ED4C6E)[nb-2]:/home/runner/work/QuartoManuscript/QuartoManuscript/notebooks/quartoNotebook.qmd -->
+<!-- (F2ED4C6E)[nb-3]:/home/runner/work/QuartoManuscript/QuartoManuscript/notebooks/analyses.qmd -->
+<!-- (F2ED4C6E)[nb-4]:/home/runner/work/QuartoManuscript/QuartoManuscript/notebooks/describeSample.qmd -->
+<!-- (F2ED4C6E)[nb-5]:/home/runner/work/QuartoManuscript/QuartoManuscript/notebooks/reliability.qmd -->
+<!-- (F2ED4C6E)[nb-6]:/home/runner/work/QuartoManuscript/QuartoManuscript/notebooks/screening.qmd -->
+<!-- (F2ED4C6E)[nb-7]:/home/runner/work/QuartoManuscript/QuartoManuscript/notebooks/missingness.qmd -->
+<!-- (F2ED4C6E)[nb-8]:/home/runner/work/QuartoManuscript/QuartoManuscript/notebooks/correlations.qmd -->
+
+</article>
