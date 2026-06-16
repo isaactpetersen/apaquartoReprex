@@ -1,8 +1,8 @@
 project:
   type: manuscript
 
-manuscript:
-  code-links: repo
+#manuscript:
+#  code-links: repo
 
 lang: en-US
 bibliography: references.bib
@@ -26,8 +26,6 @@ format:
         showHighlights: whenSidebarOpen
     license: CC BY
     csl: apa.csl
-    include-in-header:
-      - file: "includes/google_analytics.html"
   #apaquarto-html:
   #  toc: true
   apaquarto-docx:
