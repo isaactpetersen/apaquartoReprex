@@ -84,44 +84,6 @@ citation:
 
 ## Section in Introduction
 
-This works and gives no error (@fig-exampleA):
-
-![Sample Image 1.](Figures/sampleImage1.png){
-  #fig-exampleA
-  fig-alt="Insert description here."
-  apa-note="Variable A indirectly causes Variable C."
-  }
-
-This results in an error and no figure note (@fig-exampleB):
-
-::: {#fig-exampleB layout-ncol=2}
-![Sample Image 1.](Figures/sampleImage1.png){
-  #fig-sampleImage1
-  fig-alt="Insert description here."
-  apa-note="Variable A indirectly causes Variable C."}
-
-![Sample Image 2.](Figures/sampleImage2.png){
-  #fig-sampleImage2
-  fig-alt="Insert description here."
-  apa-note="The distribution of a variable."}
-
-:::
-
-This works but doesn't show the APA-style figure note (@fig-exampleC):
-
-::: {#fig-exampleC layout-ncol=2}
-![Sample Image 1.](Figures/sampleImage1.png){
-  #fig-sampleImage1
-  fig-alt="Insert description here."}
-
-![Sample Image 2.](Figures/sampleImage2.png){
-  #fig-sampleImage2
-  fig-alt="Insert description here."}
-
-**Panel A**: Insert description here.
-**Panel B**: Insert description here.
-:::
-
 ## Another Section in Introduction
 
 # Method
