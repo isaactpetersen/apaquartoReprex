@@ -115,6 +115,11 @@ INSERT ABSTRACT HERE.
 <body>
 <sec id="section-in-introduction">
   <title>Section in Introduction</title>
+  <p>See <xref alt="Figure 1" rid="fig-mtcars">Figure 1</xref>.</p>
+  <fig id="fig-mtcars">
+    <caption><p>Figure 1: My Figure Caption</p></caption>
+    <graphic mimetype="image" mime-subtype="png" xlink:href="index_files/figure-jats/notebooks-analyses-fig-mtcars-output-1.png" />
+  </fig>
 </sec>
 <sec id="another-section-in-introduction">
   <title>Another Section in Introduction</title>
@@ -160,6 +165,6 @@ INSERT ABSTRACT HERE.
 <back>
 </back>
 
-
+<!-- (F2ED4C6E)[nb-1]:/home/runner/work/apaquartoReprex/apaquartoReprex/notebooks/analyses.qmd -->
 
 </article>
