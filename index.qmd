@@ -84,6 +84,10 @@ citation:
 
 ## Section in Introduction
 
+See @fig-mtcars.
+
+{{< embed notebooks/analyses.qmd#fig-mtcars >}}
+
 ## Another Section in Introduction
 
 # Method

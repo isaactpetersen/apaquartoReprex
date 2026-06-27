@@ -1,0 +1,61 @@
+---
+title: "Analyses"
+author: "Isaac T. Petersen"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+format:
+  html:
+    toc: true
+    toc-depth: 4
+    number-sections: true
+    number-depth: 4
+    code-fold: show
+    echo: true
+    error: true
+    embed-resources: true
+    self-contained-math: true
+---
+
+```{r}
+#install.packages("remotes")
+#remotes::install_github("DevPsyLab/petersenlab")
+```
+
+# Intro
+
+# Preamble
+
+## Install Libraries
+
+<!-- *IMPORTANT NOTE*: Because of how pandoc works, the figure and table labels must be all lowercase for cross-references to work -->
+
+## Load Libraries
+
+```{r}
+#| message: false
+#| warning: false
+
+```
+
+## Load Data
+
+```{r}
+#| label: fig-mtcars
+#| fig-cap: "My Figure Caption"
+#| apa-note: "My APA-style figure note."
+
+plot(mtcars)
+```
+
+# Plots
+
+# Session Info
+
+```{r}
+sessionInfo()
+```
+
+## Rstudio Version
+
+```{r}
+#rstudioapi::versionInfo()
+```
