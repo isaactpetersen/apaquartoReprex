@@ -124,12 +124,461 @@ local extend_paragraph = function(para, meta_item, sep)
 end
 
 
+-- Typst document-mode helpers ------------------------------------------------
+
+local function is_typst_mode(meta, mode)
+  return FORMAT:match 'typst' and meta.documentmode and
+    stringify(meta.documentmode) == mode
+end
+
+-- Manuscript front matter uses explicit line and page breaks to space the title
+-- page; journal and document modes drop them for a continuous layout.
+local function is_frontmatter_spacing(block)
+  return block.t == "LineBreak" or block.t == "SoftBreak" or
+    (block.t == "RawBlock" and block.format == "typst" and
+      block.text:find("#pagebreak", 1, true) ~= nil)
+end
+
+-- Journal mode: split the front matter into the full-width masthead (title,
+-- byline, affiliations, abstract, keywords) and the author note. The caller
+-- wraps the masthead in place(scope: "parent", float: true) so it spans both
+-- columns; the author note then flows into the two-column body rather than
+-- crowding the masthead.
+-- Surname for the journal running head. Quarto's parsed name.family is used
+-- when it really is the trailing surname of the displayed name, which keeps
+-- compound surnames ("van der Berg") whole. When an author writes the name as
+-- a given/family pair, Quarto can fold the two together and re-split on the
+-- last space, leaving family as a middle initial; in that case the last word
+-- of the display name is the better answer.
+local function author_surname(a)
+  local display = a.apaauthordisplay and stringify(a.apaauthordisplay) or ""
+  local family = a.name and a.name.family and stringify(a.name.family) or ""
+  if family ~= "" and display:sub(-#family) == family then
+    return family
+  end
+  return display:match("(%S+)%s*$") or family
+end
+
+-- Running head byline: surnames with serial commas, an ampersand before the
+-- last, and "et al." once there are more than three authors.
+local function running_authors(byauthor)
+  local names = List:new {}
+  for _, a in ipairs(byauthor) do
+    local surname = author_surname(a)
+    if surname ~= "" then
+      names:insert(surname)
+    end
+  end
+  if #names == 0 then
+    return nil
+  elseif #names == 1 then
+    return names[1]
+  elseif #names == 2 then
+    return names[1] .. " & " .. names[2]
+  elseif #names == 3 then
+    return names[1] .. ", " .. names[2] .. ", & " .. names[3]
+  end
+  return names[1] .. " et al."
+end
+
+-- The ORCID icon carries a width in millimetres, which next to the author
+-- note's smaller text is taller than the text itself and opens up every line
+-- it sits on. Typst measures a line from the cap height to the baseline, about
+-- 0.66em in Times, so sizing the icon to that keeps it level with the capitals
+-- beside it and leaves the line height alone. The height must be written as a
+-- literal dimension, since Pandoc parses this attribute rather than passing it
+-- through. Dropping the width keeps the icon square.
+local function fit_jou_orcid(blocks)
+  return pandoc.Blocks(blocks):walk {
+    Image = function(img)
+      if img.identifier == "orcid" then
+        img.attributes.width = nil
+        img.attributes.height = "0.66em"
+        return img
+      end
+    end
+  }
+end
+
+-- Each ORCID line is one short name-and-link paragraph, so justifying it
+-- stretches the gaps across the column and indenting it leaves the names out
+-- of line with each other. They are set flush left and unindented, while the
+-- prose paragraphs of the note keep the indent they are given.
+local function has_orcid(block)
+  local found = false
+  block:walk {
+    Image = function(img)
+      if img.identifier == "orcid" then
+        found = true
+      end
+    end
+  }
+  return found
+end
+
+local function set_off_jou_orcid(blocks)
+  local out = List:new {}
+  local open = false
+  for _, block in ipairs(blocks) do
+    local orcid = block.t == "Para" and has_orcid(block)
+    if orcid and not open then
+      out:extend({ pandoc.RawBlock("typst",
+        "#block[\n#set par(justify: false, first-line-indent: 0pt)") })
+      open = true
+    elseif open and not orcid then
+      out:extend({ pandoc.RawBlock("typst", "]") })
+      open = false
+    end
+    out:extend({ block })
+  end
+  if open then
+    out:extend({ pandoc.RawBlock("typst", "]") })
+  end
+  return out
+end
+
+-- apa7 sets the byline larger than the affiliations under it. Quarto emits
+-- both inside one Div, so the sizes are switched partway through its content:
+-- the byline is the first paragraph, and every paragraph after it is an
+-- affiliation.
+local function size_jou_byline(blocks)
+  for _, block in ipairs(blocks) do
+    if block.t == "Div" and block.classes:includes("Author") then
+      local content = List:new {
+        pandoc.RawBlock("typst", "#set par(..joubylinepar)"),
+        pandoc.RawBlock("typst", "#set block(spacing: 0.55em)")
+      }
+      local seen_byline = false
+      for _, inner in ipairs(block.content) do
+        if inner.t == "Para" and not seen_byline then
+          seen_byline = true
+          content:extend({ pandoc.RawBlock("typst", "#set text(size: jouauthorsize)") })
+          content:extend({ inner })
+          content:extend({ pandoc.RawBlock("typst", "#set text(size: jouaffiliationsize)") })
+        else
+          content:extend({ inner })
+        end
+      end
+      block.content = content
+    end
+  end
+  return blocks
+end
+
+-- The masthead is set in three pieces. "front" is the title and authors, at
+-- the sizes apa7 gives them. "narrow" is everything from the abstract on --
+-- abstract, impact statement, keywords -- which apa7 sets smaller and in a
+-- block narrower than the masthead. "notes" is the author note, which is
+-- separated by a rule below both.
+local function split_jou_frontmatter(blocks)
+  local front = List:new {}
+  local narrow = List:new {}
+  local notes = List:new {}
+  local tail = List:new {}
+  local in_notes = false
+  local in_narrow = false
+  for _, block in ipairs(blocks) do
+    if block.t == "Header" and block.identifier == "author-note" then
+      -- The note sits alone at the foot of the column under a rule, the way
+      -- apa7 sets it, so it needs no heading to introduce it.
+      in_notes = true
+      in_narrow = false
+    elseif block.t == "Header" and block.identifier == "abstract" then
+      -- apa7 prints no heading above the abstract in journal mode; the small
+      -- narrow block is what marks it out.
+      in_notes = false
+      in_narrow = true
+    elseif block.t == "Header" and block.identifier == "impact" then
+      -- The impact statement does keep its heading. Everything from here to
+      -- the author note belongs in the narrow block, including the keywords
+      -- line that trails the abstract.
+      in_notes = false
+      in_narrow = true
+      narrow:extend({ block })
+    elseif block.t == "Header" and block.identifier == "firstheader" then
+      -- The masthead already carries the title; do not repeat it.
+    elseif block.t == "RawBlock" and block.format == "typst" and
+        (block.text:find("#outline", 1, true) ~= nil or
+         block.text:find("#show outline", 1, true) ~= nil) then
+      -- A table of contents / list of figures or tables is too large for the
+      -- floating masthead; let it flow in the two-column body instead. Match
+      -- both the #outline call and any #show outline styling rule Quarto emits.
+      tail:extend({ block })
+    elseif is_frontmatter_spacing(block) then
+      -- No manuscript spacing in journal mode.
+    elseif in_notes then
+      notes:extend({ block })
+    elseif in_narrow then
+      narrow:extend({ block })
+    else
+      front:extend({ block })
+    end
+  end
+  return front, narrow, notes, tail
+end
+
+-- The impact statement is set off from the abstract above it and the keywords
+-- below it by a 1pt rule, 5pt clear of the text on every side and 9pt clear
+-- of the abstract and the keywords. The box is emitted at width 100% inside
+-- the narrow block, so its outer edge lines up with the abstract rather than
+-- standing proud of it.
+local function box_jou_impact(blocks)
+  local out = List:new {}
+  local i = 1
+  while i <= #blocks do
+    local block = blocks[i]
+    if block.t == "Header" and block.identifier == "impact" then
+      out:extend({ pandoc.RawBlock('typst',
+        '#block(width: 100%, inset: 6pt, above: 9pt, below: 9pt, stroke: .75pt + black)[') })
+      out:extend({ block })
+      i = i + 1
+      -- The statement itself arrives as one or more Divs. The keywords line
+      -- that follows it is a Para, which closes the box.
+      while i <= #blocks and blocks[i].t == "Div" do
+        out:extend({ blocks[i] })
+        i = i + 1
+      end
+      out:extend({ pandoc.RawBlock('typst', ']') })
+    else
+      out:extend({ block })
+      i = i + 1
+    end
+  end
+  return out
+end
+
+-- Document mode: one continuous flow. Drop the repeated body-top title and the
+-- manuscript spacing/pagebreaks; keep everything else in order.
+local function strip_doc_frontmatter(blocks)
+  local out = List:new {}
+  for _, block in ipairs(blocks) do
+    if block.t == "Header" and block.identifier == "firstheader" then
+      -- Title already appears at the top of the document.
+    elseif is_frontmatter_spacing(block) then
+      -- Continuous flow: no manuscript breaks.
+    else
+      out:extend({ block })
+    end
+  end
+  return out
+end
+
+-- Student paper title fields (course, instructor, due date, note).
+local function add_student_field(body, meta, field)
+  local content = meta[field]
+  if not content or stringify(content) == "" then
+    return
+  end
+  local div
+  local content_type = pandoc.utils.type(content)
+  if content_type == "Blocks" then
+    div = pandoc.Div(content)
+  elseif content_type == "Inlines" then
+    div = pandoc.Div({ pandoc.Para(content) })
+  else
+    div = pandoc.Div({ pandoc.Para(pandoc.Inlines({ pandoc.Str(stringify(content)) })) })
+  end
+  div.classes:insert("Author")
+  body:extend({ div })
+end
+
+-- Coerce a metadata value to Inlines (or nil if empty). Shared with the
+-- latex side, which reads the journal fields through utilsapa as well.
+local meta_inlines = utilsapa.meta_inlines
+
+-- Journal masthead for jou mode, following the way the journals set one: the
+-- journal's name at the right of the page with its logo opposite, a rule
+-- under both, and the issue on the right beneath it with the copyright on the
+-- left. Journal of Educational Psychology is the model.
+--
+-- The fields belong under journal, but an author who writes any of them at
+-- the top level gets the same reading of them, which is how volume,
+-- copyrightnotice and copyrighttext were given before there was anywhere else
+-- to put them.
+
+local journal_title = utilsapa.journal_title
+local journal_field = utilsapa.journal_field
+local journal_issue_line = utilsapa.journal_issue_line
+
+-- The logo apaquarto ships with, asked for by writing logo: default.
+--
+-- The extension is installed as _extensions/apaquarto when it is worked on
+-- and as _extensions/<owner>/apaquarto when it is added with quarto add, so
+-- the folder is found from this filter's own path rather than assumed.
+--
+-- Typst reads a path that begins with a slash from the root it is given,
+-- which is the project directory, or the document's own directory when the
+-- document does not belong to a project. Anchoring there rather than writing
+-- a path relative to the .typ keeps the logo reachable from a paper that sits
+-- in a subfolder of the project. Forward slashes are what typst wants on
+-- every platform.
+local kDefaultLogo = "default"
+local kShippedLogo = "apaquarto-logo.png"
+
+local function typst_root()
+  local ok, dir = pcall(function() return quarto.project.directory end)
+  if ok and dir and dir ~= "" then return dir end
+  ok, dir = pcall(function()
+    return pandoc.path.directory(quarto.doc.input_file)
+  end)
+  if ok and dir and dir ~= "" then return dir end
+  return pandoc.system.get_working_directory()
+end
+
+local function shipped_logo()
+  if not PANDOC_SCRIPT_FILE then return nil end
+  local ok, path = pcall(function()
+    local script = PANDOC_SCRIPT_FILE
+    if not pandoc.path.is_absolute(script) then
+      script = pandoc.path.join(
+        { pandoc.system.get_working_directory(), script })
+    end
+    local folder = pandoc.path.directory(script)
+    return pandoc.path.make_relative(
+      pandoc.path.join({ folder, kShippedLogo }), typst_root())
+  end)
+  if not ok or not path or path == "" then return nil end
+  path = path:gsub("\\", "/")
+  if path:sub(1, 1) ~= "/" then path = "/" .. path end
+  return path
+end
+
+-- A path as a typst string literal
+local function typst_string(text)
+  return '"' .. text:gsub('\\', '\\\\'):gsub('"', '\\"') .. '"'
+end
+
+-- "(c) 2025 The Author(s)", from whichever of the two was given
+local function journal_copyright(meta)
+  local notice = journal_field(meta, "copyrightnotice")
+  local text = journal_field(meta, "copyrighttext")
+  if not (notice or text) then return nil end
+  local out = List:new { pandoc.Str("\u{00A9}") }
+  if notice then
+    out:extend({ pandoc.Space() })
+    out:extend(notice)
+  end
+  if text then
+    out:extend({ pandoc.Space() })
+    out:extend(text)
+  end
+  return out
+end
+
+-- The two lines of one side of the masthead, under the rule
+local function masthead_lines(first, second)
+  local out = List:new {}
+  if first then out:extend(first) end
+  if second then
+    if #out > 0 then out:extend({ pandoc.LineBreak() }) end
+    out:extend(second)
+  end
+  if #out == 0 then return nil end
+  return List:new { pandoc.Plain(out) }
+end
+
+local function typst_journal_metadata(meta)
+  local title = journal_title(meta)
+  local issue_line = journal_issue_line(meta)
+  local url = journal_field(meta, "url")
+  local logo = journal_field(meta, "logo")
+  if logo and stringify(logo) == kDefaultLogo then
+    local shipped = shipped_logo()
+    if shipped then
+      logo = pandoc.Inlines({ pandoc.Str(shipped) })
+    else
+      quarto.log.warning(
+        "logo: default could not find " .. kShippedLogo ..
+        " in the apaquarto extension folder, so the masthead has no logo.")
+      logo = nil
+    end
+  end
+  local issn = journal_field(meta, "issn")
+  local copyright = journal_copyright(meta)
+
+  if not (title or issue_line or url or logo or issn or copyright) then
+    return List:new {}
+  end
+
+  -- The url is set as a link, so that it is both live and coloured the way
+  -- the journals print a doi.
+  local url_line
+  if url then
+    local target = stringify(url)
+    url_line = List:new { pandoc.Link(url, target) }
+  end
+
+  local issn_line
+  if issn then
+    issn_line = List:new { pandoc.Str("ISSN:"), pandoc.Space() }
+    issn_line:extend(issn)
+  end
+
+  local left = masthead_lines(copyright, issn_line)
+  local right = masthead_lines(issue_line, url_line)
+
+  local result = List:new {}
+  -- Into the top margin, so that the masthead sits where a journal puts it
+  -- without moving the pages after the first.
+  result:extend({ pandoc.RawBlock("typst", "#joumastheadlift()") })
+  result:extend({ pandoc.RawBlock("typst",
+    "#block(width: 100%, below: 1em)[\n" ..
+    "#set par(first-line-indent: 0pt)") })
+
+  -- Above the rule: the logo at the left, the journal's name at the right,
+  -- both sitting on it.
+  if logo or title then
+    result:extend({ pandoc.RawBlock("typst",
+      "#grid(columns: (1fr, auto), align: (left + bottom, right + bottom),\n" ..
+      "  column-gutter: 1em, [") })
+    -- The logo is written as typst rather than as a pandoc image so that it
+    -- can be fitted to the height of the masthead band: pandoc drops a height
+    -- it cannot read as a dimension, and the band is named in the template.
+    if logo then
+      result:extend({ pandoc.RawBlock("typst",
+        "#image(" .. typst_string(stringify(logo)) .. ", height: joulogoheight)") })
+    end
+    result:extend({ pandoc.RawBlock("typst",
+      "], [\n#set text(size: joujournalsize)") })
+    if title then
+      result:extend({ pandoc.Plain(title) })
+    end
+    result:extend({ pandoc.RawBlock("typst", "])") })
+  end
+
+  result:extend({ pandoc.RawBlock("typst",
+    -- Plain v rather than weak: a weak space collapses against the edge
+    -- of a block, which left the rule touching the descenders of the
+    -- journal's name whenever there was no logo to give the row height.
+    "#v(3pt)\n#line(length: 100%, stroke: 0.5pt + black)\n#v(3pt)") })
+
+  -- Below it: the copyright at the left, the issue and the doi at the right.
+  if left or right then
+    result:extend({ pandoc.RawBlock("typst",
+      "#grid(columns: (1fr, 1fr), align: (left + top, right + top),\n" ..
+      "  column-gutter: 1em, [\n#set text(size: joumastheadsize)") })
+    if left then result:extend(left) end
+    result:extend({ pandoc.RawBlock("typst",
+      "], [\n#set text(size: joumastheadsize)") })
+    if right then result:extend(right) end
+    result:extend({ pandoc.RawBlock("typst", "])") })
+  end
+
+  result:extend({ pandoc.RawBlock("typst", "]") })
+
+  return result
+end
+
 return {
   { Meta = get_and },
   {
     Pandoc = function(doc)
       local body = List:new {}
       local meta = doc.meta
+
+      local typst_jou = is_typst_mode(meta, "jou")
+      local typst_doc = is_typst_mode(meta, "doc")
+      local typst_stu = is_typst_mode(meta, "stu")
 
       local documenttitle = ""
       local intabovetitle = 2
@@ -160,6 +609,17 @@ return {
       end
 
       local byauthor = meta["by-author"]
+
+      -- Byline for the journal-mode even-page running head. Left unset when
+      -- authorship is masked or suppressed, and the header falls back to the
+      -- short title.
+      if byauthor and not meta["suppress-author"] and
+          not (meta["mask"] and stringify(meta["mask"]) == "true") then
+        local line = running_authors(byauthor)
+        if line then
+          meta["jou-running-authors"] = pandoc.MetaString(line)
+        end
+      end
       local affiliations = meta["affiliations"]
 
       local authornote = false
@@ -238,6 +698,13 @@ return {
 
       if not mask then
         body:extend({ authordiv })
+      end
+
+      if typst_stu and not mask then
+        add_student_field(body, meta, "course")
+        add_student_field(body, meta, "professor")
+        add_student_field(body, meta, "duedate")
+        add_student_field(body, meta, "note")
       end
 
       if meta["draft-date"] then
@@ -392,7 +859,7 @@ return {
 
       if #credit_paragraph.content > 1 then
         local authorroleintroduction = pandoc.Str(
-        "Author roles were classified using the Contributor Role Taxonomy (CRediT; https://credit.niso.org) as follows:")
+        "Author roles were classified using the Contributor Role Taxonomy (CRediT; https://credit.niso.org/) as follows:")
         if meta.language and meta.language["title-block-role-introduction"] then
           authorroleintroduction = meta.language["title-block-role-introduction"]
           if type(authorroleintroduction) == "string" then
@@ -603,6 +1070,22 @@ return {
         body:extend({ keywords_paragraph })
       end
 
+      -- A pointer to supplemental materials (a repository, an OSF page, a data
+      -- archive) sits on its own line under the keywords, labelled the way the
+      -- keywords line is.
+      if meta["supplemental-materials"] and
+          stringify(meta["supplemental-materials"]) ~= "" and
+          not meta["suppress-supplemental-materials"] then
+        local supplementalword = pandoc.Str("Supplemental materials")
+        if meta.language and meta.language["title-supplemental-materials"] then
+          supplementalword = stringify(meta.language["title-supplemental-materials"])
+        end
+
+        local supplemental_paragraph = pandoc.Para({ pandoc.Emph(supplementalword), pandoc.Str(":"), pandoc.Space() })
+        supplemental_paragraph.content:extend(meta_inlines(meta["supplemental-materials"]))
+        body:extend({ supplemental_paragraph })
+      end
+
       if meta["word-count"] then
         local word_count_word = "Word Count"
         if meta.language and meta.language["title-block-word-count"] then
@@ -681,7 +1164,73 @@ return {
         body:extend({ firstpageheader })
       end
 
-      body:extend(doc.blocks)
+      if typst_jou then
+        -- Masthead (title/byline/affiliations/abstract) spans both columns via
+        -- place(float); the author note flows into the two-column body beneath
+        -- it, set off by a thin rule, rather than crowding the masthead.
+        local front, narrow, notes, tail = split_jou_frontmatter(body)
+        local metadata = typst_journal_metadata(meta)
+        local out = List:new {}
+        out:extend({ pandoc.RawBlock('typst',
+          '#place(top, scope: "parent", float: true, clearance: 1.5em)[') })
+        -- The masthead carries its own block, sizes and alignment, and lifts
+        -- itself into the top margin of the page it sits on.
+        out:extend(metadata)
+        -- The title and authors. The template's heading rule pins every
+        -- heading to the body size, so the title size is restated here in a
+        -- show rule of its own, which being the later rule wins inside this
+        -- block only.
+        -- apa7's journal title is \LARGE but not bold, so the weight is reset
+        -- along with the size; typst headings are bold by default.
+        out:extend({ pandoc.RawBlock('typst',
+          '#block(width: 100%)[\n' ..
+          '#show heading.where(level: 1): set text(size: joutitlesize, weight: "regular")') })
+        out:extend(size_jou_byline(front))
+        out:extend({ pandoc.RawBlock('typst', ']') })
+        if #narrow > 0 then
+          -- Abstract, impact statement and keywords: smaller, and set in a
+          -- block narrower than the masthead, centered under the authors.
+          -- Leading is set in em so it follows the smaller text at the same
+          -- ratio the body uses, rather than keeping the body's absolute
+          -- leading and looking slack at this size.
+          out:extend({ pandoc.RawBlock('typst',
+            '#align(center)[\n' ..
+            '#block(width: jouabstractwidth, above: 1em, below: 0.6em)[\n' ..
+            '#set align(left)\n#set text(size: jouabstractsize)\n' ..
+            '#set par(leading: jouabstractleading, first-line-indent: 0pt)\n' ..
+            '#show heading.where(level: 1): set text(size: jouabstractsize)') })
+          out:extend(box_jou_impact(narrow))
+          out:extend({ pandoc.RawBlock('typst', ']\n]') })
+        end
+        out:extend({ pandoc.RawBlock('typst', ']') })
+        if #notes > 0 then
+          -- jouauthornote in typst-template.typ places the note at the foot of
+          -- the first column, or across the foot of the page in two columns
+          -- when it is too long for one. Emitting it at the head of the body
+          -- puts it on the first page. author-note-columns overrides the
+          -- reading it takes of the length; anything else, "auto" included,
+          -- leaves the decision to it.
+          local notecols = "auto"
+          if meta["author-note-columns"] then
+            local asked = stringify(meta["author-note-columns"])
+            if asked == "1" or asked == "2" then
+              notecols = asked
+            end
+          end
+          out:extend({ pandoc.RawBlock('typst',
+            '#jouauthornote(cols: ' .. notecols .. ')[') })
+          out:extend(set_off_jou_orcid(fit_jou_orcid(notes)))
+          out:extend({ pandoc.RawBlock('typst', ']') })
+        end
+        out:extend(tail)
+        out:extend(doc.blocks)
+        body = out
+      elseif typst_doc then
+        body = strip_doc_frontmatter(body)
+        body:extend(doc.blocks)
+      else
+        body:extend(doc.blocks)
+      end
       return pandoc.Pandoc(body, meta)
     end
   }
