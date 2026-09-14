@@ -121,44 +121,8 @@ INSERT ABSTRACT HERE.
     <graphic mimetype="image" mime-subtype="png" xlink:href="index_files/figure-jats/notebooks-analyses-fig-mtcars-output-1.png" />
   </fig>
 </sec>
-<sec id="another-section-in-introduction">
-  <title>Another Section in Introduction</title>
-</sec>
-<sec id="method">
-  <title>Method</title>
-  <sec id="participants">
-    <title>Participants</title>
-  </sec>
-  <sec id="procedure">
-    <title>Procedure</title>
-  </sec>
-  <sec id="measures">
-    <title>Measures</title>
-  </sec>
-  <sec id="statistical-analysis">
-    <title>Statistical Analysis</title>
-  </sec>
-</sec>
-<sec id="results">
-  <title>Results</title>
-</sec>
-<sec id="discussion">
-  <title>Discussion</title>
-  <sec id="limitations-and-future-directions">
-    <title>Limitations and Future Directions</title>
-  </sec>
-  <sec id="conclusion">
-    <title>Conclusion</title>
-  </sec>
-</sec>
 <sec id="references">
   <title>References</title>
-</sec>
-<sec id="apx-a">
-  <title>This Section Is an Appendix</title>
-</sec>
-<sec id="apx-b">
-  <title>Another Appendix</title>
 </sec>
 </body>
 
