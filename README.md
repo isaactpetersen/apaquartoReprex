@@ -1,3 +1,3 @@
-# QuartoManuscript
+# apaquartoReprex
 
 Minimal reproducible example of issue using `apaquarto`.
