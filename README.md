@@ -1,3 +1,3 @@
 # QuartoManuscript
 
-Minimal reproducible example of error when using `apaquarto`.
+Minimal reproducible example of issue using `apaquarto`.
