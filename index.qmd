@@ -88,33 +88,9 @@ See @fig-mtcars.
 
 {{< embed notebooks/analyses.qmd#fig-mtcars >}}
 
-## Another Section in Introduction
-
-# Method
-
-## Participants
-
-## Procedure
-
-## Measures
-
-## Statistical Analysis
-
-# Results
-
-# Discussion
-
-## Limitations and Future Directions
-
-## Conclusion
-
 # References
 
 <!-- References will auto-populate in the refs div below -->
 
 ::: {#refs}
 :::
-
-# This Section Is an Appendix {#apx-a}
-
-# Another Appendix {#apx-b}

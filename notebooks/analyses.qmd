@@ -5,14 +5,6 @@ date: '`r format(Sys.Date(), "%B %d, %Y")`'
 format:
   html:
     toc: true
-    toc-depth: 4
-    number-sections: true
-    number-depth: 4
-    code-fold: show
-    echo: true
-    error: true
-    embed-resources: true
-    self-contained-math: true
 ---
 
 ```{r}
