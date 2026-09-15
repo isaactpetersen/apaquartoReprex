@@ -79,10 +79,10 @@ Sciences</institution>
 <corresp id="cor-1">isaac-t-petersen@uiowa.edu</corresp>
 </author-notes>
 
-<pub-date date-type="pub" publication-format="electronic" iso-8601-date="2026-09-14">
+<pub-date date-type="pub" publication-format="electronic" iso-8601-date="2026-09-15">
 <year>2026</year>
 <month>9</month>
-<day>14</day>
+<day>15</day>
 </pub-date>
 
 
@@ -119,6 +119,74 @@ INSERT ABSTRACT HERE.
   <fig id="fig-mtcars">
     <caption><p>Figure 1: My Figure Caption</p></caption>
     <graphic mimetype="image" mime-subtype="png" xlink:href="index_files/figure-jats/notebooks-analyses-fig-mtcars-output-1.png" />
+  </fig>
+</sec>
+<sec id="another-section">
+  <title>Another Section</title>
+  <p>This works and gives no error
+  (<xref alt="Figure 2" rid="fig-exampleA">Figure 2</xref>):</p>
+  <fig id="fig-exampleA">
+    <caption><p>Figure 2: Sample Image 1.</p></caption>
+    <graphic mimetype="image" mime-subtype="png" xlink:href="Figures/sampleImage1.png" />
+  </fig>
+  <p>This results in an error and/or no figure note
+  (<xref alt="Figure 3" rid="fig-exampleB">Figure 3</xref>):</p>
+  <fig id="fig-exampleB">
+    <caption><p>Figure 3</p></caption>
+    <table-wrap>
+      <table>
+        <colgroup>
+          <col width="50%" />
+          <col width="50%" />
+        </colgroup>
+        <tbody>
+          <tr>
+            <td align="left"><p specific-use="wrapper">
+              <fig id="fig-sampleImage1">
+                <caption><p>(a) Sample Image 1.</p></caption>
+                <graphic mimetype="image" mime-subtype="png" xlink:href="Figures/sampleImage1.png" />
+              </fig>
+            </p></td>
+            <td align="left"><p specific-use="wrapper">
+              <fig id="fig-sampleImage2">
+                <caption><p>(b) Sample Image 2.</p></caption>
+                <graphic mimetype="image" mime-subtype="png" xlink:href="Figures/sampleImage2.png" />
+              </fig>
+            </p></td>
+          </tr>
+        </tbody>
+      </table>
+    </table-wrap>
+  </fig>
+  <p>This results in no error but doesn’t show the APA-style figure note
+  (<xref alt="Figure 4" rid="fig-exampleC">Figure 4</xref>):</p>
+  <fig id="fig-exampleC">
+    <caption><p>Figure 4: <bold>Panel A</bold>: Insert description here.
+    <bold>Panel B</bold>: Insert description here.</p></caption>
+    <table-wrap>
+      <table>
+        <colgroup>
+          <col width="50%" />
+          <col width="50%" />
+        </colgroup>
+        <tbody>
+          <tr>
+            <td align="left"><p specific-use="wrapper">
+              <fig id="fig-sampleImage1">
+                <caption><p>(a) Sample Image 1.</p></caption>
+                <graphic mimetype="image" mime-subtype="png" xlink:href="Figures/sampleImage1.png" />
+              </fig>
+            </p></td>
+            <td align="left"><p specific-use="wrapper">
+              <fig id="fig-sampleImage2">
+                <caption><p>(b) Sample Image 2.</p></caption>
+                <graphic mimetype="image" mime-subtype="png" xlink:href="Figures/sampleImage2.png" />
+              </fig>
+            </p></td>
+          </tr>
+        </tbody>
+      </table>
+    </table-wrap>
   </fig>
 </sec>
 <sec id="references">
