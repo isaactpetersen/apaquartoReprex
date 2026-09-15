@@ -123,13 +123,13 @@ INSERT ABSTRACT HERE.
 </sec>
 <sec id="another-section">
   <title>Another Section</title>
-  <p>This works and gives no error
+  <p>A single figure
   (<xref alt="Figure 2" rid="fig-exampleA">Figure 2</xref>):</p>
   <fig id="fig-exampleA">
     <caption><p>Figure 2: Sample Image 1.</p></caption>
     <graphic mimetype="image" mime-subtype="png" xlink:href="Figures/sampleImage1.png" />
   </fig>
-  <p>This results in an error and/or no figure note
+  <p>Side-by-side figure using separate figure notes
   (<xref alt="Figure 3" rid="fig-exampleB">Figure 3</xref>):</p>
   <fig id="fig-exampleB">
     <caption><p>Figure 3</p></caption>
@@ -158,7 +158,7 @@ INSERT ABSTRACT HERE.
       </table>
     </table-wrap>
   </fig>
-  <p>This results in no error but doesn’t show the APA-style figure note
+  <p>Side-by-side figure using a single figure note
   (<xref alt="Figure 4" rid="fig-exampleC">Figure 4</xref>):</p>
   <fig id="fig-exampleC">
     <caption><p>Figure 4: <bold>Panel A</bold>: Insert description here.
