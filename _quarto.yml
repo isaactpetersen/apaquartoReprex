@@ -8,6 +8,9 @@ lang: en-US
 bibliography: references.bib
 csl: apa.csl
 
+filters:
+  - apanote
+
 format:
   html:
     highlight-style: a11y
