@@ -90,7 +90,7 @@ See @fig-mtcars.
 
 ## Another Section
 
-This works and gives no error (@fig-exampleA):
+A single figure (@fig-exampleA):
 
 ![Sample Image 1.](Figures/sampleImage1.png){
   #fig-exampleA
@@ -98,7 +98,7 @@ This works and gives no error (@fig-exampleA):
   apa-note="Variable A indirectly causes Variable C."
   }
 
-This results in an error and/or no figure note (@fig-exampleB):
+Side-by-side figure using separate figure notes (@fig-exampleB):
 
 ::: {#fig-exampleB layout-ncol=2}
 ![Sample Image 1.](Figures/sampleImage1.png){
@@ -115,7 +115,7 @@ This results in an error and/or no figure note (@fig-exampleB):
 
 :::
 
-This results in no error but doesn't show the APA-style figure note (@fig-exampleC):
+Side-by-side figure using a single figure note (@fig-exampleC):
 
 ::: {#fig-exampleC layout-ncol=2}
 ![Sample Image 1.](Figures/sampleImage1.png){
