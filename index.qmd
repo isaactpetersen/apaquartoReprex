@@ -84,10 +84,10 @@ citation:
 
 ## Section in Introduction
 
-This works (the APA-style figure note shows correctly; @fig-mtcars2; @fig-example1).
+This works (the APA-style figure note shows correctly; @fig-mtcars; @fig-example1).
 
 ```{r}
-#| label: fig-mtcars2
+#| label: fig-mtcars
 #| fig-cap: "My Figure Caption"
 #| apa-note: "My APA-style figure note."
 
@@ -100,9 +100,9 @@ plot(mtcars)
   apa-note="Variable A indirectly causes Variable C."
   }
 
-This doesn't work (the APA-style figure note does not show; @fig-mtcars; @fig-example2).
+This doesn't work (the APA-style figure note does not show; @fig-mtcars2; @fig-example2).
 
-{{< embed notebooks/analyses.qmd#fig-mtcars >}}
+{{< embed notebooks/analyses.qmd#fig-mtcars2 >}}
 
 {{< embed notebooks/analyses.qmd#fig-example2 >}}
 
