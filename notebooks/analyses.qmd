@@ -30,6 +30,8 @@ format:
 
 ## Load Data
 
+# Plots
+
 ```{r}
 #| label: fig-mtcars
 #| fig-cap: "My Figure Caption"
@@ -38,7 +40,11 @@ format:
 plot(mtcars)
 ```
 
-# Plots
+![Sample Image 1.](../Figures/sampleImage1.png){
+  #fig-example2
+  fig-alt="Insert description here."
+  apa-note="Variable A indirectly causes Variable C."
+  }
 
 # Session Info
 

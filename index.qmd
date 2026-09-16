@@ -84,11 +84,7 @@ citation:
 
 ## Section in Introduction
 
-This doesn't work (the APA-style figure note does not show; @fig-mtcars).
-
-{{< embed notebooks/analyses.qmd#fig-mtcars >}}
-
-This works (the APA-style figure note shows correctly; @fig-mtcars2).
+This works (the APA-style figure note shows correctly; @fig-mtcars2; @fig-example1).
 
 ```{r}
 #| label: fig-mtcars2
@@ -97,6 +93,18 @@ This works (the APA-style figure note shows correctly; @fig-mtcars2).
 
 plot(mtcars)
 ```
+
+![Sample Image 1.](Figures/sampleImage1.png){
+  #fig-example1
+  fig-alt="Insert description here."
+  apa-note="Variable A indirectly causes Variable C."
+  }
+
+This doesn't work (the APA-style figure note does not show; @fig-mtcars; @fig-example2).
+
+{{< embed notebooks/analyses.qmd#fig-mtcars >}}
+
+{{< embed notebooks/analyses.qmd#fig-example2 >}}
 
 ## Another Section
 
