@@ -1,5 +1,5 @@
 Package: placeholder
-Title: QuartoManuscript
+Title: apaquartoReprex
 Version: 1.0.0
 Imports:
   knitr,

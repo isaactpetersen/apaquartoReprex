@@ -77,7 +77,7 @@ citation:
   #issue: INSERT
   #issued: YEAR
   #doi: INSERT
-  url: https://devpsylab.github.io/QuartoManuscript/
+  url: https://isaactpetersen.github.io/apaquartoReprex/
 ---
 
 <!-- The introduction should not have a level-1 heading such as Introduction. -->
