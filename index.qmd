@@ -88,6 +88,16 @@ See @fig-mtcars.
 
 {{< embed notebooks/analyses.qmd#fig-mtcars >}}
 
+See @fig-mtcars2.
+
+```{r}
+#| label: fig-mtcars2
+#| fig-cap: "My Figure Caption"
+#| apa-note: "My APA-style figure note."
+
+plot(mtcars)
+```
+
 ## Another Section
 
 A single figure (@fig-exampleA):
