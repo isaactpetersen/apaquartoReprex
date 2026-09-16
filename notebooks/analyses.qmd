@@ -40,12 +40,6 @@ format:
 plot(mtcars)
 ```
 
-![Sample Image 2.](../Figures/sampleImage2.png){
-  #fig-example2
-  fig-alt="Insert description here."
-  apa-note="Variable A indirectly causes Variable C."
-  }
-
 # Session Info
 
 ```{r}
