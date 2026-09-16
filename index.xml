@@ -124,14 +124,22 @@ INSERT ABSTRACT HERE.
   </fig>
   <p>This doesn’t work (the APA-style figure note does not show;
   <xref alt="Figure 2" rid="fig-mtcars2">Figure 2</xref>;
-  <bold>?@fig-example2</bold>).</p>
+  <xref alt="Figure 3" rid="fig-example2">Figure 3</xref>).</p>
   <fig id="fig-mtcars2">
     <caption><p>Figure 2: My Figure Caption</p></caption>
     <graphic mimetype="image" mime-subtype="png" xlink:href="index_files/figure-jats/notebooks-analyses-fig-mtcars2-output-1.png" />
   </fig>
+  <p><italic>Note</italic>. My APA-style figure note.</p>
+  <fig id="fig-example2">
+    <caption><p>Figure 3: Sample Image 2.</p></caption>
+    <graphic mimetype="image" mime-subtype="png" xlink:href="index_files/figure-jats/a38f739e-eb19-4bcf-bcf2-ace61d0cb085-1-../Figures/sampleImage2.png" />
+  </fig>
 </sec>
-<sec id="another-section">
-  <title>Another Section</title>
+<sec id="session-info">
+  <title>Session Info</title>
+  <sec id="another-section">
+    <title>Another Section</title>
+  </sec>
 </sec>
 <sec id="references">
   <title>References</title>
@@ -219,7 +227,7 @@ INSERT ABSTRACT HERE.
   </sec>
   <p>This doesn’t work (the APA-style figure note does not show;
   <xref alt="Figure 2" rid="fig-mtcars2-nb-article">Figure 2</xref>;
-  <bold>?@fig-example2</bold>).</p>
+  <xref alt="Figure 3" rid="fig-example2-nb-article">Figure 3</xref>).</p>
   <sec id="cell-fig-mtcars2-nb-article" specific-use="notebook-content">
   <code language="python">plot(mtcars)</code>
   <fig id="fig-mtcars2-nb-article">
@@ -227,9 +235,17 @@ INSERT ABSTRACT HERE.
     <graphic mimetype="image" mime-subtype="png" xlink:href="index_files/figure-jats/notebooks-analyses-fig-mtcars2-output-1.png" />
   </fig>
   </sec>
+  <p><italic>Note</italic>. My APA-style figure note.</p>
+  <fig id="fig-example2-nb-article">
+    <caption><p>Figure 3: Sample Image 2.</p></caption>
+    <graphic mimetype="image" mime-subtype="png" xlink:href="index_files/figure-jats/a38f739e-eb19-4bcf-bcf2-ace61d0cb085-1-../Figures/sampleImage2.png" />
+  </fig>
 </sec>
-<sec id="another-section-nb-article">
-  <title>Another Section</title>
+<sec id="session-info-nb-article">
+  <title>Session Info</title>
+  <sec id="another-section-nb-article">
+    <title>Another Section</title>
+  </sec>
 </sec>
 <sec id="references-nb-article">
   <title>References</title>
