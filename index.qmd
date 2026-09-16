@@ -84,11 +84,11 @@ citation:
 
 ## Section in Introduction
 
-This works (the APA-style figure note shows correctly; @fig-mtcars).
+This doesn't work (the APA-style figure note does not show; @fig-mtcars).
 
 {{< embed notebooks/analyses.qmd#fig-mtcars >}}
 
-This doesn't work (the APA-style figure note does not show; @fig-mtcars2).
+This works (the APA-style figure note shows correctly; @fig-mtcars2).
 
 ```{r}
 #| label: fig-mtcars2
