@@ -115,12 +115,14 @@ INSERT ABSTRACT HERE.
 <body>
 <sec id="section-in-introduction">
   <title>Section in Introduction</title>
-  <p>See <xref alt="Figure 1" rid="fig-mtcars">Figure 1</xref>.</p>
+  <p>This works (the APA-style figure note shows correctly;
+  <xref alt="Figure 1" rid="fig-mtcars">Figure 1</xref>).</p>
   <fig id="fig-mtcars">
     <caption><p>Figure 1: My Figure Caption</p></caption>
     <graphic mimetype="image" mime-subtype="png" xlink:href="index_files/figure-jats/notebooks-analyses-fig-mtcars-output-1.png" />
   </fig>
-  <p>See <xref alt="Figure 2" rid="fig-mtcars2">Figure 2</xref>.</p>
+  <p>This doesn’t work (the APA-style figure note does not show;
+  <xref alt="Figure 2" rid="fig-mtcars2">Figure 2</xref>).</p>
   <fig id="fig-mtcars2">
     <caption><p>Figure 2: My Figure Caption</p></caption>
     <graphic mimetype="image" mime-subtype="png" xlink:href="index_files/figure-jats/fig-mtcars2-1.png" />
@@ -203,7 +205,8 @@ INSERT ABSTRACT HERE.
 <body>
 <sec id="section-in-introduction-nb-article">
   <title>Section in Introduction</title>
-  <p>See <xref alt="Figure 1" rid="fig-mtcars-nb-article">Figure 1</xref>.</p>
+  <p>This works (the APA-style figure note shows correctly;
+  <xref alt="Figure 1" rid="fig-mtcars-nb-article">Figure 1</xref>).</p>
   <sec id="cell-fig-mtcars-nb-article" specific-use="notebook-content">
   <code language="python">plot(mtcars)</code>
   <fig id="fig-mtcars-nb-article">
@@ -211,7 +214,8 @@ INSERT ABSTRACT HERE.
     <graphic mimetype="image" mime-subtype="png" xlink:href="index_files/figure-jats/notebooks-analyses-fig-mtcars-output-1.png" />
   </fig>
   </sec>
-  <p>See <xref alt="Figure 2" rid="fig-mtcars2-nb-article">Figure 2</xref>.</p>
+  <p>This doesn’t work (the APA-style figure note does not show;
+  <xref alt="Figure 2" rid="fig-mtcars2-nb-article">Figure 2</xref>).</p>
   <sec id="cell-fig-mtcars2-nb-article" specific-use="notebook-content">
   <code language="r script">plot(mtcars)</code>
   <fig id="fig-mtcars2-nb-article">
