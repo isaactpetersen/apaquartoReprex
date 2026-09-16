@@ -79,10 +79,10 @@ Sciences</institution>
 <corresp id="cor-1">isaac-t-petersen@uiowa.edu</corresp>
 </author-notes>
 
-<pub-date date-type="pub" publication-format="electronic" iso-8601-date="2026-09-15">
+<pub-date date-type="pub" publication-format="electronic" iso-8601-date="2026-09-16">
 <year>2026</year>
 <month>9</month>
-<day>15</day>
+<day>16</day>
 </pub-date>
 
 
@@ -120,19 +120,24 @@ INSERT ABSTRACT HERE.
     <caption><p>Figure 1: My Figure Caption</p></caption>
     <graphic mimetype="image" mime-subtype="png" xlink:href="index_files/figure-jats/notebooks-analyses-fig-mtcars-output-1.png" />
   </fig>
+  <p>See <xref alt="Figure 2" rid="fig-mtcars2">Figure 2</xref>.</p>
+  <fig id="fig-mtcars2">
+    <caption><p>Figure 2: My Figure Caption</p></caption>
+    <graphic mimetype="image" mime-subtype="png" xlink:href="index_files/figure-jats/fig-mtcars2-1.png" />
+  </fig>
 </sec>
 <sec id="another-section">
   <title>Another Section</title>
   <p>A single figure
-  (<xref alt="Figure 2" rid="fig-exampleA">Figure 2</xref>):</p>
+  (<xref alt="Figure 3" rid="fig-exampleA">Figure 3</xref>):</p>
   <fig id="fig-exampleA">
-    <caption><p>Figure 2: Sample Image 1.</p></caption>
+    <caption><p>Figure 3: Sample Image 1.</p></caption>
     <graphic mimetype="image" mime-subtype="png" xlink:href="Figures/sampleImage1.png" />
   </fig>
   <p>Side-by-side figure using separate figure notes
-  (<xref alt="Figure 3" rid="fig-exampleB">Figure 3</xref>):</p>
+  (<xref alt="Figure 4" rid="fig-exampleB">Figure 4</xref>):</p>
   <fig id="fig-exampleB">
-    <caption><p>Figure 3</p></caption>
+    <caption><p>Figure 4</p></caption>
     <table-wrap>
       <table>
         <colgroup>
@@ -159,9 +164,9 @@ INSERT ABSTRACT HERE.
     </table-wrap>
   </fig>
   <p>Side-by-side figure using a single figure note
-  (<xref alt="Figure 4" rid="fig-exampleC">Figure 4</xref>):</p>
+  (<xref alt="Figure 5" rid="fig-exampleC">Figure 5</xref>):</p>
   <fig id="fig-exampleC">
-    <caption><p>Figure 4: <bold>Panel A</bold>: Insert description here.
+    <caption><p>Figure 5: <bold>Panel A</bold>: Insert description here.
     <bold>Panel B</bold>: Insert description here.</p></caption>
     <table-wrap>
       <table>
@@ -197,6 +202,169 @@ INSERT ABSTRACT HERE.
 <back>
 </back>
 
+<sub-article article-type="notebook" id="nb-7-nb-article">
+<front-stub>
+<title-group>
+<article-title>Full Title</article-title>
+</title-group>
+<contrib-group>
+<contrib contrib-type="author" corresp="yes">
+<contrib-id contrib-id-type="orcid">0000-0003-3072-6673</contrib-id>
+<name>
+<surname>Petersen</surname>
+<given-names>Isaac T.</given-names>
+</name>
+<string-name>Isaac T. Petersen</string-name>
+
+<email>isaac-t-petersen@uiowa.edu</email>
+<role vocab="https://credit.niso.org" vocab-term="conceptualization" vocab-term-identifier="https://credit.niso.org/contributor-roles/conceptualization/">conceptualization</role>
+<role vocab="https://credit.niso.org" vocab-term="data
+curation" vocab-term-identifier="https://credit.niso.org/contributor-roles/data-curation/">data
+curation</role>
+<role vocab="https://credit.niso.org" vocab-term="formal
+analysis" vocab-term-identifier="https://credit.niso.org/contributor-roles/formal-analysis/">analysis</role>
+<role vocab="https://credit.niso.org" vocab-term="funding
+acquisition" vocab-term-identifier="https://credit.niso.org/contributor-roles/funding-acquisition/">funding</role>
+<role vocab="https://credit.niso.org" vocab-term="investigation" vocab-term-identifier="https://credit.niso.org/contributor-roles/investigation/">investigation</role>
+<role vocab="https://credit.niso.org" vocab-term="methodology" vocab-term-identifier="https://credit.niso.org/contributor-roles/methodology/">methodology</role>
+<role vocab="https://credit.niso.org" vocab-term="project
+administration" vocab-term-identifier="https://credit.niso.org/contributor-roles/project-administration/">project
+administration</role>
+<role vocab="https://credit.niso.org" vocab-term="resources" vocab-term-identifier="https://credit.niso.org/contributor-roles/resources/">resources</role>
+<role vocab="https://credit.niso.org" vocab-term="software" vocab-term-identifier="https://credit.niso.org/contributor-roles/software/">software</role>
+<role vocab="https://credit.niso.org" vocab-term="supervision" vocab-term-identifier="https://credit.niso.org/contributor-roles/supervision/">supervision</role>
+<role vocab="https://credit.niso.org" vocab-term="validation" vocab-term-identifier="https://credit.niso.org/contributor-roles/validation/">validation</role>
+<role vocab="https://credit.niso.org" vocab-term="visualization" vocab-term-identifier="https://credit.niso.org/contributor-roles/visualization/">visualization</role>
+<role vocab="https://credit.niso.org" vocab-term="writing – original
+draft" vocab-term-identifier="https://credit.niso.org/contributor-roles/writing-original-draft/">writing</role>
+<role vocab="https://credit.niso.org" vocab-term="writing – review &amp;
+editing" vocab-term-identifier="https://credit.niso.org/contributor-roles/writing-review-editing/">editing</role>
+<xref ref-type="aff" rid="aff-1-nb-article">a</xref>
+<xref ref-type="corresp" rid="cor-1-nb-article">&#x002A;</xref>
+</contrib>
+</contrib-group>
+<aff id="aff-1-nb-article">
+<institution content-type="dept">Department of Psychological and Brain
+Sciences</institution>
+<institution-wrap>
+<institution>University of Iowa</institution>
+</institution-wrap>
+<addr-line>G60 Psychological and Brain Sciences Building</addr-line>
+<city>Iowa City</city>
+<state>IA</state>
+
+<postal-code>52242</postal-code>
+
+
+</aff>
+<author-notes>
+<corresp id="cor-1-nb-article">isaac-t-petersen@uiowa.edu</corresp>
+</author-notes>
+<abstract>
+INSERT ABSTRACT HERE.
+</abstract>
+</front-stub>
+
+<body>
+<sec id="section-in-introduction-nb-article">
+  <title>Section in Introduction</title>
+  <p>See <xref alt="Figure 1" rid="fig-mtcars-nb-article">Figure 1</xref>.</p>
+  <sec id="cell-fig-mtcars-nb-article" specific-use="notebook-content">
+  <code language="python">plot(mtcars)</code>
+  <fig id="fig-mtcars-nb-article">
+    <caption><p>Figure 1: My Figure Caption</p></caption>
+    <graphic mimetype="image" mime-subtype="png" xlink:href="index_files/figure-jats/notebooks-analyses-fig-mtcars-output-1.png" />
+  </fig>
+  </sec>
+  <p>See <xref alt="Figure 2" rid="fig-mtcars2-nb-article">Figure 2</xref>.</p>
+  <sec id="cell-fig-mtcars2-nb-article" specific-use="notebook-content">
+  <code language="r script">plot(mtcars)</code>
+  <fig id="fig-mtcars2-nb-article">
+    <caption><p>Figure 2: My Figure Caption</p></caption>
+    <graphic mimetype="image" mime-subtype="png" xlink:href="index_files/figure-jats/fig-mtcars2-1.png" />
+  </fig>
+  </sec>
+</sec>
+<sec id="another-section-nb-article">
+  <title>Another Section</title>
+  <p>A single figure
+  (<xref alt="Figure 3" rid="fig-exampleA-nb-article">Figure 3</xref>):</p>
+  <fig id="fig-exampleA-nb-article">
+    <caption><p>Figure 3: Sample Image 1.</p></caption>
+    <graphic mimetype="image" mime-subtype="png" xlink:href="Figures/sampleImage1.png" />
+  </fig>
+  <p>Side-by-side figure using separate figure notes
+  (<xref alt="Figure 4" rid="fig-exampleB-nb-article">Figure 4</xref>):</p>
+  <fig id="fig-exampleB-nb-article">
+    <caption><p>Figure 4</p></caption>
+    <table-wrap>
+      <table>
+        <colgroup>
+          <col width="50%" />
+          <col width="50%" />
+        </colgroup>
+        <tbody>
+          <tr>
+            <td align="left"><p specific-use="wrapper">
+              <fig id="fig-sampleImage1-nb-article">
+                <caption><p>(a) Sample Image 1.</p></caption>
+                <graphic mimetype="image" mime-subtype="png" xlink:href="Figures/sampleImage1.png" />
+              </fig>
+            </p></td>
+            <td align="left"><p specific-use="wrapper">
+              <fig id="fig-sampleImage2-nb-article">
+                <caption><p>(b) Sample Image 2.</p></caption>
+                <graphic mimetype="image" mime-subtype="png" xlink:href="Figures/sampleImage2.png" />
+              </fig>
+            </p></td>
+          </tr>
+        </tbody>
+      </table>
+    </table-wrap>
+  </fig>
+  <p>Side-by-side figure using a single figure note
+  (<xref alt="Figure 5" rid="fig-exampleC-nb-article">Figure 5</xref>):</p>
+  <fig id="fig-exampleC-nb-article">
+    <caption><p>Figure 5: <bold>Panel A</bold>: Insert description here.
+    <bold>Panel B</bold>: Insert description here.</p></caption>
+    <table-wrap>
+      <table>
+        <colgroup>
+          <col width="50%" />
+          <col width="50%" />
+        </colgroup>
+        <tbody>
+          <tr>
+            <td align="left"><p specific-use="wrapper">
+              <fig id="fig-sampleImage1-nb-article">
+                <caption><p>(a) Sample Image 1.</p></caption>
+                <graphic mimetype="image" mime-subtype="png" xlink:href="Figures/sampleImage1.png" />
+              </fig>
+            </p></td>
+            <td align="left"><p specific-use="wrapper">
+              <fig id="fig-sampleImage2-nb-article">
+                <caption><p>(b) Sample Image 2.</p></caption>
+                <graphic mimetype="image" mime-subtype="png" xlink:href="Figures/sampleImage2.png" />
+              </fig>
+            </p></td>
+          </tr>
+        </tbody>
+      </table>
+    </table-wrap>
+  </fig>
+</sec>
+<sec id="references-nb-article">
+  <title>References</title>
+</sec>
+</body>
+
+
+
+<back>
+</back>
+
+
+</sub-article>
 <!-- (F2ED4C6E)[nb-1]:/home/runner/work/apaquartoReprex/apaquartoReprex/notebooks/analyses.qmd -->
 
 </article>
