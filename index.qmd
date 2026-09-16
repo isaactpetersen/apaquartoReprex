@@ -106,7 +106,7 @@ This doesn't work (the APA-style figure note does not show; @fig-mtcars2; @fig-e
 
 {{< embed notebooks/analyses.qmd#fig-mtcars2 >}}
 
-<!-- {{< embed notebooks/analyses.qmd#fig-example2 >}} -->
+{{< embed notebooks/analyses.qmd#fig-example2 >}}
 
 ## Another Section
 
