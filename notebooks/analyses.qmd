@@ -33,14 +33,14 @@ format:
 # Plots
 
 ```{r}
-#| label: fig-mtcars
+#| label: fig-mtcars2
 #| fig-cap: "My Figure Caption"
 #| apa-note: "My APA-style figure note."
 
 plot(mtcars)
 ```
 
-![Sample Image 1.](../Figures/sampleImage1.png){
+![Sample Image 2.](../Figures/sampleImage2.png){
   #fig-example2
   fig-alt="Insert description here."
   apa-note="Variable A indirectly causes Variable C."
