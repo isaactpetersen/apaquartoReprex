@@ -154,7 +154,7 @@ div.csl-indent {
 <div id="quarto-margin-sidebar" class="sidebar margin-sidebar zindex-bottom">
 </div>
 <main class="content quarto-banner-title-block" id="quarto-document-content"><!-- The introduction should not have a level-1 heading such as Introduction. --><section id="section-in-introduction" class="level2"><h2 class="anchored" data-anchor-id="section-in-introduction">Section in Introduction</h2>
-<p>This works (the APA-style figure note shows correctly; <a href="#fig-mtcars" class="quarto-xref">Figure&nbsp;1</a>; <a href="#fig-example1" class="quarto-xref">Figure&nbsp;2</a>).</p>
+<p>This works (the APA-style figure note shows correctly; <a href="#fig-mtcars" class="quarto-xref">Figure&nbsp;1</a>; <strong>?@fig-example1</strong>).</p>
 <div id="cell-fig-mtcars" class="cell" data-apa-note="My APA-style figure note." data-apa-note-written="true">
 <div class="cell-output-display">
 <div id="fig-mtcars" class="quarto-float quarto-figure quarto-figure-center anchored">
@@ -172,52 +172,29 @@ Figure&nbsp;1: My Figure Caption
 <em>Note</em>. My&nbsp;APA-style figure note.
 </div>
 </div>
-<div id="fig-example1" class="quarto-float quarto-figure quarto-figure-center anchored" data-apa-note="Variable A indirectly causes Variable C." alt="Insert description here." data-apa-note-written="true">
-<figure class="quarto-float quarto-float-fig figure"><div aria-describedby="fig-example1-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<a href="Figures/sampleImage1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="Figure&nbsp;2: Sample Image 1."><img src="Figures/sampleImage1.png" class="img-fluid figure-img" data-apa-note="Variable A indirectly causes Variable C." alt="Insert description here."></a>
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-example1-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2: Sample Image 1.
-</figcaption></figure>
-</div>
-<div>
-<div class="FigureNote NoIndent" data-custom-style="FigureNote">
-<em>Note</em>. Variable&nbsp;A indirectly causes Variable C.
-</div>
-</div>
-<p>This doesn’t work (the APA-style figure note does not show; <a href="#fig-mtcars2" class="quarto-xref">Figure&nbsp;3</a>; <a href="#fig-example2" class="quarto-xref">Figure&nbsp;4</a>).</p>
+<!-- 
+![Sample Image 1.](Figures/sampleImage1.png){
+  #fig-example1
+  fig-alt="Insert description here."
+  apa-note="Variable A indirectly causes Variable C."
+  }
+-->
+<p>This doesn’t work (the APA-style figure note does not show; <a href="#fig-mtcars2" class="quarto-xref">Figure&nbsp;2</a>; <strong>?@fig-example2</strong>).</p>
 <div class="quarto-embed-nb-cell">
 <div id="cell-fig-mtcars2" class="cell" data-apa-note="My APA-style figure note." data-apa-note-written="true">
 <div class="cell-output cell-output-display">
 <div id="fig-mtcars2" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure"><div aria-describedby="fig-mtcars2-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<a href="index_files/figure-html/notebooks-analyses-fig-mtcars2-output-1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-3" title="Figure&nbsp;3: My Figure Caption"><img src="index_files/figure-html/notebooks-analyses-fig-mtcars2-output-1.png" width="672" height="480" class="figure-img"></a>
+<a href="index_files/figure-html/notebooks-analyses-fig-mtcars2-output-1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="Figure&nbsp;2: My Figure Caption"><img src="index_files/figure-html/notebooks-analyses-fig-mtcars2-output-1.png" width="672" height="480" class="figure-img"></a>
 </div>
 <figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-mtcars2-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;3: My Figure Caption
+Figure&nbsp;2: My Figure Caption
 </figcaption></figure>
 </div>
 </div>
 </div>
 </div>
-<div class="quarto-embed-nb-cell">
-<p><em>Note</em>. My&nbsp;APA-style figure note.</p>
-<div id="fig-example2" class="quarto-float quarto-figure quarto-figure-center anchored" data-apa-note="Variable A indirectly causes Variable C." alt="Insert description here." data-apa-note-written="true">
-<figure class="quarto-float quarto-float-fig figure"><div aria-describedby="fig-example2-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<a href="index_files/figure-html/e888d4a3-d345-40fa-a780-a9823d3b5311-1-../Figures/sampleImage2.png" class="lightbox" data-gallery="quarto-lightbox-gallery-4" title="Figure&nbsp;4: Sample Image 2."><img src="index_files/figure-html/e888d4a3-d345-40fa-a780-a9823d3b5311-1-../Figures/sampleImage2.png" class="img-fluid figure-img" data-apa-note="Variable A indirectly causes Variable C." alt="Insert description here."></a>
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-example2-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;4: Sample Image 2.
-</figcaption></figure>
-</div>
-<div>
-<div class="FigureNote NoIndent" data-custom-style="FigureNote">
-<em>Note</em>. Variable&nbsp;A indirectly causes Variable C.
-</div>
-</div>
-<section id="session-info" class="level1"><h1>Session Info</h1>
-</section>
-</div>
+<!-- {{< embed notebooks/analyses.qmd#fig-example2 >}} -->
 </section><section id="another-section" class="level2"><h2 class="anchored" data-anchor-id="another-section">Another Section</h2>
 </section><section id="references" class="level1"><h1>References</h1>
 <!-- References will auto-populate in the refs div below -->

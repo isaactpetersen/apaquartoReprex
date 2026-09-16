@@ -117,33 +117,21 @@ INSERT ABSTRACT HERE.
   <title>Section in Introduction</title>
   <p>This works (the APA-style figure note shows correctly;
   <xref alt="Figure 1" rid="fig-mtcars">Figure 1</xref>;
-  <xref alt="Figure 2" rid="fig-example1">Figure 2</xref>).</p>
+  <bold>?@fig-example1</bold>).</p>
   <fig id="fig-mtcars">
     <caption><p>Figure 1: My Figure Caption</p></caption>
     <graphic mimetype="image" mime-subtype="png" xlink:href="index_files/figure-jats/fig-mtcars-1.png" />
   </fig>
-  <fig id="fig-example1">
-    <caption><p>Figure 2: Sample Image 1.</p></caption>
-    <graphic mimetype="image" mime-subtype="png" xlink:href="Figures/sampleImage1.png" />
-  </fig>
   <p>This doesn’t work (the APA-style figure note does not show;
-  <xref alt="Figure 3" rid="fig-mtcars2">Figure 3</xref>;
-  <xref alt="Figure 4" rid="fig-example2">Figure 4</xref>).</p>
+  <xref alt="Figure 2" rid="fig-mtcars2">Figure 2</xref>;
+  <bold>?@fig-example2</bold>).</p>
   <fig id="fig-mtcars2">
-    <caption><p>Figure 3: My Figure Caption</p></caption>
+    <caption><p>Figure 2: My Figure Caption</p></caption>
     <graphic mimetype="image" mime-subtype="png" xlink:href="index_files/figure-jats/notebooks-analyses-fig-mtcars2-output-1.png" />
   </fig>
-  <p><italic>Note</italic>. My APA-style figure note.</p>
-  <fig id="fig-example2">
-    <caption><p>Figure 4: Sample Image 2.</p></caption>
-    <graphic mimetype="image" mime-subtype="png" xlink:href="index_files/figure-jats/e888d4a3-d345-40fa-a780-a9823d3b5311-1-../Figures/sampleImage2.png" />
-  </fig>
 </sec>
-<sec id="session-info">
-  <title>Session Info</title>
-  <sec id="another-section">
-    <title>Another Section</title>
-  </sec>
+<sec id="another-section">
+  <title>Another Section</title>
 </sec>
 <sec id="references">
   <title>References</title>
@@ -221,7 +209,7 @@ INSERT ABSTRACT HERE.
   <title>Section in Introduction</title>
   <p>This works (the APA-style figure note shows correctly;
   <xref alt="Figure 1" rid="fig-mtcars-nb-article">Figure 1</xref>;
-  <xref alt="Figure 2" rid="fig-example1-nb-article">Figure 2</xref>).</p>
+  <bold>?@fig-example1</bold>).</p>
   <sec id="cell-fig-mtcars-nb-article" specific-use="notebook-content">
   <code language="r script">plot(mtcars)</code>
   <fig id="fig-mtcars-nb-article">
@@ -229,31 +217,19 @@ INSERT ABSTRACT HERE.
     <graphic mimetype="image" mime-subtype="png" xlink:href="index_files/figure-jats/fig-mtcars-1.png" />
   </fig>
   </sec>
-  <fig id="fig-example1-nb-article">
-    <caption><p>Figure 2: Sample Image 1.</p></caption>
-    <graphic mimetype="image" mime-subtype="png" xlink:href="Figures/sampleImage1.png" />
-  </fig>
   <p>This doesn’t work (the APA-style figure note does not show;
-  <xref alt="Figure 3" rid="fig-mtcars2-nb-article">Figure 3</xref>;
-  <xref alt="Figure 4" rid="fig-example2-nb-article">Figure 4</xref>).</p>
+  <xref alt="Figure 2" rid="fig-mtcars2-nb-article">Figure 2</xref>;
+  <bold>?@fig-example2</bold>).</p>
   <sec id="cell-fig-mtcars2-nb-article" specific-use="notebook-content">
   <code language="python">plot(mtcars)</code>
   <fig id="fig-mtcars2-nb-article">
-    <caption><p>Figure 3: My Figure Caption</p></caption>
+    <caption><p>Figure 2: My Figure Caption</p></caption>
     <graphic mimetype="image" mime-subtype="png" xlink:href="index_files/figure-jats/notebooks-analyses-fig-mtcars2-output-1.png" />
   </fig>
   </sec>
-  <p><italic>Note</italic>. My APA-style figure note.</p>
-  <fig id="fig-example2-nb-article">
-    <caption><p>Figure 4: Sample Image 2.</p></caption>
-    <graphic mimetype="image" mime-subtype="png" xlink:href="index_files/figure-jats/e888d4a3-d345-40fa-a780-a9823d3b5311-1-../Figures/sampleImage2.png" />
-  </fig>
 </sec>
-<sec id="session-info-nb-article">
-  <title>Session Info</title>
-  <sec id="another-section-nb-article">
-    <title>Another Section</title>
-  </sec>
+<sec id="another-section-nb-article">
+  <title>Another Section</title>
 </sec>
 <sec id="references-nb-article">
   <title>References</title>
