@@ -84,8 +84,13 @@ citation:
 
 ## Section in Introduction
 
+See multi-panel figure note in @fig-mtcars:
+
+{{< embed notebooks/analyses.qmd#fig-mtcars >}}
+
 ## Another Section
 
+<!-- 
 A single figure (@fig-exampleA):
 
 ![Sample Image 1.](Figures/sampleImage1.png){
@@ -127,6 +132,7 @@ Side-by-side figure using a single figure note (@fig-exampleC):
 **Panel A**: Insert description here.
 **Panel B**: Insert description here.
 :::
+-->
 
 # References
 
