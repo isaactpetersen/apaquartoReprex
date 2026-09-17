@@ -32,14 +32,6 @@ format:
 
 # Plots
 
-```{r}
-#| label: fig-mtcars2
-#| fig-cap: "My Figure Caption"
-#| apa-note: "My APA-style figure note."
-
-plot(mtcars)
-```
-
 # Session Info
 
 ```{r}

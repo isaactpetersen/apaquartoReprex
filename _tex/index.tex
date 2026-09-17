@@ -345,43 +345,93 @@ Building, Iowa City, IA 52242. Email: isaac-t-petersen@uiowa.edu}
 
 \subsection{Section in Introduction}\label{section-in-introduction}
 
-This works (the APA-style figure note shows correctly;
-Figure~\ref{fig-mtcars}).
-
-\protect\phantomsection\label{cell-fig-mtcars}
-\begin{figure}[H]
-
-{\caption{{My Figure Caption}{\label{fig-mtcars}}}}
-
-\pandocbounded{\includegraphics[keepaspectratio]{index_files/figure-pdf/fig-mtcars-1.pdf}}
-
-\ifdefined\apanotespacing\apanotespacing\fi \noindent \emph{Note.} My~APA-style
-figure note.
-
-\end{figure}
-
-\textsubscript{Source:
-\href{https://isaactpetersen.github.io/apaquartoReprex/index.qmd.html}{Article
-Notebook}}
-
-This doesn't work (the APA-style figure note does not show;
-Figure~\ref{fig-mtcars2}).
-
-\begin{figure}[H]
-
-{\caption{{My Figure Caption}{\label{fig-mtcars2}}}}
-
-\pandocbounded{\includegraphics[keepaspectratio]{index_files/figure-latex/notebooks-analyses-fig-mtcars2-output-1.png}}
-
-\ifdefined\apanotespacing\apanotespacing\fi \noindent \emph{Note.} My~APA-style
-figure note.
-
-\end{figure}
-
-\textsubscript{Source:
-\href{https://isaactpetersen.github.io/apaquartoReprex/notebooks/analyses-preview.html\#cell-fig-mtcars2}{Analyses}}
-
 \subsection{Another Section}\label{another-section}
+
+A single figure (Figure~\ref{fig-exampleA}):
+
+\begin{figure}[!htbp]
+
+{\caption{{Sample Image 1.}{\label{fig-exampleA}}}}
+
+\pandocbounded{\includegraphics[keepaspectratio,alt={Insert description here.}]{Figures/sampleImage1.png}}
+
+\ifdefined\apanotespacing\apanotespacing\fi \noindent \emph{Note.} Variable~A
+indirectly causes Variable C.
+
+\end{figure}
+
+Side-by-side figure using separate figure notes
+(Figure~\ref{fig-exampleB}):
+
+\begin{figure}
+
+\caption{\label{fig-exampleB}}
+
+\begin{minipage}[t]{0.50\linewidth}
+
+\subcaption{\label{fig-sampleImage1}Sample Image 1.}
+
+\centering{
+
+\pandocbounded{\includegraphics[keepaspectratio,alt={Insert description here.}]{Figures/sampleImage1.png}}
+
+\ifdefined\apanotespacing\apanotespacing\fi \noindent \emph{Note.} Variable~A
+indirectly causes Variable C.
+
+}
+
+\end{minipage}%
+%
+\begin{minipage}[t]{0.50\linewidth}
+
+\subcaption{\label{fig-sampleImage2}Sample Image 2.}
+
+\centering{
+
+\pandocbounded{\includegraphics[keepaspectratio,alt={Insert description here.}]{Figures/sampleImage2.png}}
+
+\ifdefined\apanotespacing\apanotespacing\fi \noindent \emph{Note.} The~distribution
+of a variable.
+
+}
+
+\end{minipage}%
+
+\end{figure}%
+
+Side-by-side figure using a single figure note
+(Figure~\ref{fig-exampleC}):
+
+\begin{figure}
+
+\caption{\label{fig-exampleC}\textbf{Panel A}: Insert description here.
+\textbf{Panel B}: Insert description here.}
+
+\begin{minipage}[t]{0.50\linewidth}
+
+\subcaption{\label{fig-sampleImage1}Sample Image 1.}
+
+\centering{
+
+\pandocbounded{\includegraphics[keepaspectratio,alt={Insert description here.}]{Figures/sampleImage1.png}}
+
+}
+
+\end{minipage}%
+%
+\begin{minipage}[t]{0.50\linewidth}
+
+\subcaption{\label{fig-sampleImage2}Sample Image 2.}
+
+\centering{
+
+\pandocbounded{\includegraphics[keepaspectratio,alt={Insert description here.}]{Figures/sampleImage2.png}}
+
+}
+
+\end{minipage}%
+
+\end{figure}%
 
 
 
