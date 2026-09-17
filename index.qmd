@@ -84,20 +84,6 @@ citation:
 
 ## Section in Introduction
 
-This works (the APA-style figure note shows correctly; @fig-mtcars).
-
-```{r}
-#| label: fig-mtcars
-#| fig-cap: "My Figure Caption"
-#| apa-note: "My APA-style figure note."
-
-plot(mtcars)
-```
-
-This doesn't work (the APA-style figure note does not show; @fig-mtcars2).
-
-{{< embed notebooks/analyses.qmd#fig-mtcars2 >}}
-
 ## Another Section
 
 # References
