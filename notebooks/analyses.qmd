@@ -32,6 +32,16 @@ format:
 
 # Plots
 
+```{r}
+#| label: fig-mtcars
+#| fig-cap: "My Figure Caption"
+#| apa-note:
+#|   - "**Panel A**: Insert figure note here."
+#|   - "**Panel B**: Insert figure note here."
+
+plot(mtcars)
+```
+
 # Session Info
 
 ```{r}
