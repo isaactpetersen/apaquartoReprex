@@ -84,11 +84,22 @@ citation:
 
 ## Section in Introduction
 
+![Sample Image 1.](Figures/sampleImage1.png){
+  #fig-exampleA
+  fig-alt="Insert description here."
+  apa-note="Variable A indirectly causes Variable C."
+  }
+
+## Another Section A
+
+<!-- 
 See multi-panel figure note in @fig-mtcars:
 
 {{< embed notebooks/analyses.qmd#fig-mtcars >}}
 
-## Another Section
+-->
+
+## Another Section B
 
 <!-- 
 A single figure (@fig-exampleA):
