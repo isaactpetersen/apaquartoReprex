@@ -79,10 +79,10 @@ Sciences</institution>
 <corresp id="cor-1">isaac-t-petersen@uiowa.edu</corresp>
 </author-notes>
 
-<pub-date date-type="pub" publication-format="electronic" iso-8601-date="2026-09-17">
+<pub-date date-type="pub" publication-format="electronic" iso-8601-date="2026-09-29">
 <year>2026</year>
 <month>9</month>
-<day>17</day>
+<day>29</day>
 </pub-date>
 
 
@@ -115,15 +115,16 @@ INSERT ABSTRACT HERE.
 <body>
 <sec id="section-in-introduction">
   <title>Section in Introduction</title>
-  <p>See multi-panel figure note in
-  <xref alt="Figure 1" rid="fig-mtcars">Figure 1</xref>:</p>
-  <fig id="fig-mtcars">
-    <caption><p>Figure 1: My Figure Caption</p></caption>
-    <graphic mimetype="image" mime-subtype="png" xlink:href="index_files/figure-jats/notebooks-analyses-fig-mtcars-output-1.png" />
+  <fig id="fig-exampleA">
+    <caption><p>Figure 1: Sample Image 1.</p></caption>
+    <graphic mimetype="image" mime-subtype="png" xlink:href="Figures/sampleImage1.png" />
   </fig>
 </sec>
-<sec id="another-section">
-  <title>Another Section</title>
+<sec id="another-section-a">
+  <title>Another Section A</title>
+</sec>
+<sec id="another-section-b">
+  <title>Another Section B</title>
 </sec>
 <sec id="references">
   <title>References</title>
