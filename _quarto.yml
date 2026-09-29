@@ -9,6 +9,7 @@ bibliography: references.bib
 csl: apa.csl
 
 filters:
+  - quarto
   - apanote
 
 format:
