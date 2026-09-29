@@ -55,6 +55,8 @@ local theme_path = "word/theme/theme1.xml"
 local styles_path = "word/styles.xml"
 local document_path = "word/document.xml"
 local header_pattern = "^word/header%d*%.xml$"
+local footer_pattern = "^word/footer%d*%.xml$"
+local rels_path = "word/_rels/document.xml.rels"
 
 --- Styles that hold code but take their font from the theme by default
 local code_styles = {
@@ -194,7 +196,56 @@ local function set_style_font(style, font)
   return style:sub(1, #style - #closetag) .. rpr .. closetag
 end
 
-local function patch_styles(styles, monofont)
+--- The paragraph properties a dissertation's styles take. The Graduate School
+--- sets the body double spaced, which is what Normal carries, but a block
+--- quotation, a note and the entries of the reference list single spaced, with
+--- a double space between one entry and the next and the whole of a quotation
+--- half an inch in from both margins. A line of twelve point Times is 13.8
+--- points deep in word, so the 276 twips under a paragraph are the second line
+--- that makes the gap between two of them a double space.
+---
+--- A block quotation is given those 276 twips as well. Word hangs the extra
+--- half of a double-spaced line below the line rather than above it, so a
+--- single-spaced paragraph leaves nothing under its last line, and the
+--- paragraph after a quotation would otherwise sit a single space from it
+--- while the paragraph before it sits a double space away.
+---
+--- Each style's properties are written out in full rather than added to what
+--- the reference document ships, so that they read as the handbook's rule
+--- rather than as a difference from it, and so that a document that brings a
+--- reference document of its own still gets them. What was there before is
+--- kept in a marker, and every other mode puts it back.
+local single_spaced = '<w:spacing w:after="276" w:line="240" w:lineRule="auto"/>'
+local thesis_properties = {
+  BlockText = single_spaced .. '<w:ind w:left="720" w:right="720" w:firstLine="0"/>',
+  NextBlockText = single_spaced .. '<w:ind w:firstLine="720"/>',
+  Bibliography = single_spaced .. '<w:ind w:left="720" w:hanging="720"/>',
+  --- A numbered note, whose first line the handbook asks to be indented half
+  --- an inch. Its turned lines run to the margin.
+  FootnoteText = single_spaced .. '<w:ind w:firstLine="720"/>'
+}
+
+--- Give a style the paragraph properties it is to carry, or take away the ones
+--- it has when properties is nil, and say what it had.
+local function set_style_properties(style, properties)
+  local first, last = style:find("<w:pPr>.-</w:pPr>")
+  local original = first and
+    style:sub(first, last):match("^<w:pPr>(.-)</w:pPr>$") or ""
+  local ppr = properties and "<w:pPr>" .. properties .. "</w:pPr>" or ""
+  if first then
+    return style:sub(1, first - 1) .. ppr .. style:sub(last + 1), original
+  end
+  if ppr == "" then return style, original end
+  --- w:pPr comes before w:rPr in a style
+  local rpr = style:find("<w:rPr>", 1, true)
+  if rpr then
+    return style:sub(1, rpr - 1) .. ppr .. style:sub(rpr), original
+  end
+  local closetag = "</w:style>"
+  return style:sub(1, #style - #closetag) .. ppr .. closetag, original
+end
+
+local function patch_styles(styles, monofont, thesis)
   --- The fonts the reference document shipped with. The highlighting
   --- styles and the code styles are recorded separately because the code
   --- styles have no font of their own by default.
@@ -206,12 +257,38 @@ local function patch_styles(styles, monofont)
   local mono = monofont ~= "" and monofont or original_mono
   local code = monofont ~= "" and monofont or original_code
 
+  --- The properties those styles had before any render changed them. An empty
+  --- marker is a style that carried none, which is what every mode but thesis
+  --- puts back.
+  local original_properties = {}
+  for id in pairs(thesis_properties) do
+    original_properties[id] = get_marker(styles, "ppr" .. id)
+    styles = strip_marker(styles, "ppr" .. id)
+  end
+
   styles = strip_marker(strip_marker(styles, "monofont"), "codefont")
   local first, last = styles:find("<w:styles%s[^>]*>")
   if not first then return nil end
 
+  local property_markers = {}
   local newstyles = styles:gsub("<w:style%s.-</w:style>", function(style)
     local id = style:match('w:styleId="([^"]*)"') or ""
+    if thesis_properties[id] then
+      local _, had = set_style_properties(style, nil)
+      local original = original_properties[id] or had
+      local wanted = thesis and thesis_properties[id]
+        or (original ~= "" and original or nil)
+      --- The marker is written whenever the style is not left as it shipped,
+      --- and not only when this render is the one that changes it: a second
+      --- thesis render finds the properties already set and would otherwise
+      --- drop the marker that says what it replaced.
+      if (wanted or "") ~= original then
+        property_markers[#property_markers + 1] =
+          make_marker("ppr" .. id, original)
+      end
+      if (wanted or "") == had then return nil end
+      return (set_style_properties(style, wanted))
+    end
     if code_styles[id] then
       return set_style_font(style, code)
     elseif id:match("Tok$") then
@@ -219,9 +296,9 @@ local function patch_styles(styles, monofont)
     end
   end)
 
-  local markers = ""
+  local markers = table.concat(property_markers)
   if mono ~= original_mono or code ~= original_code then
-    markers = make_marker("monofont", original_mono) ..
+    markers = markers .. make_marker("monofont", original_mono) ..
       make_marker("codefont", original_code)
   end
 
@@ -260,7 +337,155 @@ local function set_line_numbers(document, linenumbers)
   return stripped:sub(1, last) .. marker .. wanted .. stripped:sub(last + 1)
 end
 
-local function patch_document(document, papersize, linenumbers)
+--- The margins, which live in the same section properties as the page size
+--- and which pandoc takes from the reference document just as it does the
+--- size. documentmode: thesis asks for the ones the Graduate School's
+--- handbook sets; every other mode keeps whatever the reference document
+--- shipped with.
+local function set_margins(document, margins)
+  local stripped = strip_marker(document, "margins")
+  local first, last = stripped:find("<w:pgMar[^>]*>")
+  if not first then return document end
+
+  --- The margins the reference document shipped with, as its attributes
+  local original = get_marker(document, "margins") or
+    stripped:sub(first, last):match("^<w:pgMar%s+(.-)%s*/?>$") or ""
+
+  local attributes = original
+  if margins then
+    for _, side in ipairs({ "top", "right", "bottom", "left" }) do
+      local twips = math.floor(margins[side] * 1440 + 0.5)
+      local name = "w:" .. side
+      if attributes:find(name .. '="', 1, true) then
+        attributes = attributes:gsub(name .. '="[^"]*"', name .. '="' .. twips .. '"')
+      else
+        attributes = attributes .. " " .. name .. '="' .. twips .. '"'
+      end
+    end
+  end
+
+  local marker = attributes ~= original and make_marker("margins", original) or ""
+  return stripped:sub(1, first - 1) .. marker ..
+    "<w:pgMar " .. attributes .. "/>" .. stripped:sub(last + 1)
+end
+
+--- How the pages of the body are numbered.
+---
+--- A dissertation numbers its front matter in lower-case roman and starts
+--- again at 1 for the first page of the body, so the body is a section of its
+--- own with a w:pgNumType saying so. The title page's own section is written
+--- by thesisfrontmatter.lua, at the end of the page it builds; this is the
+--- section that holds everything after it.
+---
+--- w:pgNumType belongs after w:lnNumType and before w:cols in the order the
+--- schema sets for section properties.
+---
+--- An earlier version of this left the running head off the title page with a
+--- w:titlePg here. The title page has a section of its own now and carries no
+--- header reference at all, so the element is taken out wherever a render of
+--- that version left one behind.
+local function set_page_numbering(document, numbering)
+  local stripped = strip_marker(document, "pagenumbering")
+  stripped = (stripped:gsub("<w:titlePg%s*/>", ""))
+
+  local original = get_marker(document, "pagenumbering") or
+    stripped:match("<w:pgNumType[^>]*>") or ""
+  stripped = (stripped:gsub("<w:pgNumType[^>]*>", ""))
+
+  local wanted = numbering or original
+  local marker = wanted ~= original and make_marker("pagenumbering", original) or ""
+
+  local at = stripped:find("<w:cols", 1, true)
+    or stripped:find("</w:sectPr>", 1, true)
+  if not at then return stripped end
+  return stripped:sub(1, at - 1) .. marker .. wanted .. stripped:sub(at)
+end
+
+--- The running head, which a dissertation does not have.
+---
+--- The Graduate School asks for the page number and nothing else, so in
+--- thesis mode the section names no header at all and word draws none.
+---
+--- The references are taken out as one stretch and the marker goes in where
+--- they stood, holding exactly what was there. Putting them back is then
+--- putting that stretch back in its own place, so that a reference document
+--- which has been through thesis mode and out again holds what it held
+--- before, in the order it held it, rather than the same references
+--- rearranged.
+local function set_header_references(document, strip)
+  --- Whatever a render left behind, back where it came from
+  local restored = (document:gsub(marker_pattern("headers"),
+    function(text) return text end))
+  if not strip then return restored end
+
+  local first = restored:find("<w:headerReference", 1, true)
+  if not first then return restored end
+  --- To the end of the last of them, which takes in any footer reference
+  --- standing between two header references. Those come back untouched.
+  local last = first
+  while true do
+    local from, to = restored:find("<w:headerReference[^>]*/>", last)
+    if not from then break end
+    last = to + 1
+  end
+  local span = restored:sub(first, last - 1)
+  if span == "" then return restored end
+  return restored:sub(1, first - 1) .. make_marker("headers", span)
+    .. restored:sub(last)
+end
+
+--- The page number at the centre of the foot, which is where the
+--- dissertations Temple publishes put it. Word needs a field in a footer to
+--- show one, and the reference document's footers are empty, so the field is
+--- written into the one the section names as its default.
+local footer_page_number = table.concat({
+  '<w:p><w:pPr><w:pStyle w:val="Footer"/><w:jc w:val="center"/></w:pPr>',
+  '<w:r><w:fldChar w:fldCharType="begin"/></w:r>',
+  '<w:r><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r>',
+  '<w:r><w:fldChar w:fldCharType="separate"/></w:r>',
+  '<w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>',
+})
+
+--- What the footer held before is kept in a marker, so that every other mode
+--- gets it back. A marker is an xml comment and an xml comment cannot hold a
+--- double hyphen, so a footer with one in it is left alone and said so.
+local function patch_footer(footer, wanted)
+  local _, open = footer:find("<w:ftr[^>]*>")
+  local close = footer:find("</w:ftr>", 1, true)
+  if not open or not close then return nil end
+
+  local original = get_marker(footer, "footer")
+  if original == nil then
+    if not wanted then return nil end
+    original = footer:sub(open + 1, close - 1)
+    if original:find("--", 1, true) then
+      quarto.log.warning("The reference document's footer cannot be replaced " ..
+        "with a page number, so the pages are not numbered at the foot.")
+      return nil
+    end
+  end
+
+  local body = original
+  if wanted then
+    body = make_marker("footer", original) .. footer_page_number
+  end
+  return footer:sub(1, open) .. body .. footer:sub(close)
+end
+
+--- Which footer the section calls its default, as a path in the archive.
+local function default_footer_path(document, rels)
+  local id = document:match('<w:footerReference w:type="default" r:id="([^"]+)"')
+  if not id then return nil end
+  for element in rels:gmatch("<Relationship[^>]*>") do
+    if element:match('Id="' .. id .. '"') then
+      local target = element:match('Target="([^"]+)"')
+      if target then return "word/" .. (target:gsub("^/", "")) end
+    end
+  end
+  return nil
+end
+
+local function patch_document(document, papersize, linenumbers, margins, numbering)
   local stripped = strip_marker(document, "papersize")
   local first, last = stripped:find("<w:pgSz[^>]*>")
   if not first then return nil end
@@ -292,6 +517,9 @@ local function patch_document(document, papersize, linenumbers)
   local patched = stripped:sub(1, first - 1) .. marker ..
     "<w:pgSz " .. attributes .. "/>" .. stripped:sub(last + 1)
 
+  patched = set_margins(patched, margins)
+  patched = set_page_numbering(patched, numbering)
+  patched = set_header_references(patched, numbering ~= nil)
   return set_line_numbers(patched, linenumbers) or patched
 end
 
@@ -373,12 +601,31 @@ function Pandoc(doc)
     trim(pandoc.utils.stringify(doc.meta.papersize)) or ""
   local linenumbers = doc.meta["numbered-lines"] ~= nil and
     pandoc.utils.stringify(doc.meta["numbered-lines"]) == "true"
+  --- A dissertation is bound at the left and wants a wider margin there, and
+  --- its title page carries no running head. Both belong to the section, and
+  --- the section is the reference document's.
+  local thesis = doc.meta.documentmode ~= nil and
+    pandoc.utils.stringify(doc.meta.documentmode) == "thesis"
+  local margins = thesis and require("utilsapa").thesis_margins or nil
+  --- The body of a dissertation begins again at 1, in arabic; the front
+  --- matter before it is in lower-case roman, which the title page's own
+  --- section sets.
+  local numbering = thesis and '<w:pgNumType w:fmt="decimal" w:start="1"/>'
+    or nil
   --- frontmatter.lua has already put the short title, upper cased, in the
   --- description, or a single space when the short title is suppressed. nil
   --- rather than "" when there is no description at all, which tells
   --- patch_header to leave the header alone.
   local runninghead = doc.meta.description ~= nil and
     trim(pandoc.utils.stringify(doc.meta.description)) or nil
+  --- A student paper carries the page number and nothing else. APA seventh
+  --- edition drops the running head from student work, and the control is
+  --- emptied rather than left out so that the number beside it stays.
+  --- Issue #166.
+  if doc.meta.documentmode ~= nil
+      and pandoc.utils.stringify(doc.meta.documentmode) == "stu" then
+    runninghead = ""
+  end
 
   local data = read_file(refdoc)
   if not data then
@@ -395,6 +642,21 @@ function Pandoc(doc)
     return nil
   end
 
+  --- Which footer the page number goes in. Every footer is looked at, not
+  --- just that one, so that a footer an earlier render wrote a number into is
+  --- put back when the mode changes.
+  local footer_path = nil
+  do
+    local docxml, relsxml
+    for _, entry in ipairs(archive.entries) do
+      if entry.path == document_path then docxml = entry:contents() end
+      if entry.path == rels_path then relsxml = entry:contents() end
+    end
+    if thesis and docxml and relsxml then
+      footer_path = default_footer_path(docxml, relsxml)
+    end
+  end
+
   local changed = false
   local newentries = {}
   for _, entry in ipairs(archive.entries) do
@@ -408,14 +670,14 @@ function Pandoc(doc)
       end
     elseif entry.path == styles_path then
       xml = entry:contents()
-      patched = patch_styles(xml, monofont)
+      patched = patch_styles(xml, monofont, thesis)
       if not patched then
         quarto.log.warning("Reference document " .. refdoc ..
           " has no styles, monofont was not applied.")
       end
     elseif entry.path == document_path then
       xml = entry:contents()
-      patched = patch_document(xml, papersize, linenumbers)
+      patched = patch_document(xml, papersize, linenumbers, margins, numbering)
       if not patched then
         quarto.log.warning("Reference document " .. refdoc ..
           " has no page size, so papersize and numbered-lines were not applied.")
@@ -425,6 +687,9 @@ function Pandoc(doc)
       --- others have no such control and patch_header leaves them alone.
       xml = entry:contents()
       patched = patch_header(xml, runninghead)
+    elseif entry.path:match(footer_pattern) then
+      xml = entry:contents()
+      patched = patch_footer(xml, entry.path == footer_path)
     end
     if patched and patched ~= xml then
       changed = true

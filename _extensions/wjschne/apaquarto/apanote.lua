@@ -1,9 +1,6 @@
 -- This filter prints the apa-note, if present
 
--- Do nothing if latex
-if FORMAT == "latex" then
-  return
-end
+local utilsapa = require("utilsapa")
 
 -- Default word for note
 local beginapanote = "Note"
@@ -13,8 +10,6 @@ local function getnote(m)
     beginapanote = pandoc.utils.stringify(m.language["figure-table-note"])
   end
 end
-
-local utilsapa = require("utilsapa")
 
 -- Set on a float once its note has been written, so that a second run of this
 -- filter leaves it alone. A document in an apaquarto format that also names
@@ -69,7 +64,14 @@ end
 -- which is how quarto builds it -- rather than by the word "Source", which is
 -- whatever the document's language calls it.
 local function note_position(elem)
-  if not elem.classes:includes("cell") then return nil end
+  -- A code chunk is a cell; a panel written as a markdown image becomes a
+  -- layout cell once quarto has built the grid. Either way the note belongs
+  -- inside the panel rather than after it: placed after, it is a flex item of
+  -- its own beside the panels rather than under the one it describes.
+  if not (elem.classes:includes("cell")
+      or elem.classes:includes("quarto-layout-cell")) then
+    return nil
+  end
   local blocks = elem.content
   local last = blocks[#blocks]
   if last and (last.t == "Plain" or last.t == "Para")
@@ -91,6 +93,14 @@ local function apanote(elem)
     if FORMAT ==  "typst" then
     elem.content:walk {
       Image = function(img)
+        -- A panel of a figure laid out in panels. Its note belongs under the
+        -- panel, where formattypst.lua puts it as it builds the grid, so it is
+        -- left alone here: taken onto the div around it, which is the scaffold
+        -- quarto wraps the panels in, the note would be written a second time
+        -- and after the whole figure rather than under its panel.
+        if img.attributes["ref-parent"] then
+          return img, false
+        end
         if img.attributes["apa-note"] then
           if not(elem.attributes["apa-note"]) then
             elem.attributes["apa-note"] = img.attributes["apa-note"]  

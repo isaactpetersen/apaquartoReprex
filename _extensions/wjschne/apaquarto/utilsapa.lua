@@ -96,17 +96,15 @@ function M.make_note(s, prefix)
 end
 
 -- make string, if it exists, else return default
+--- Test for nil, not for truthiness. A yaml false arrives as a lua false,
+--- which the old `if s then` read as an absent field and answered the empty
+--- string for, so every caller asking `stringify(x) ~= "false"` was told that
+--- `x: false` meant true. pandoc's own stringify answers "false" for it.
 function M.stringify(s, default)
-  if s then
-    s = pandoc.utils.stringify(s)
-  else
-    if default then
-      s = default
-    else
-      s = ""
-    end
+  if s == nil then
+    return default or ""
   end
-  return s
+  return pandoc.utils.stringify(s)
 end
 
 --- Coerce a metadata value to Inlines, or nil when it is absent or empty
@@ -211,6 +209,22 @@ local kFolder = (function()
   return pandoc.path.directory(file)
 end)()
 
+--- Whether the document has anything to put in a journal masthead.
+---
+--- Asked by the two formats that set one: typst builds it in frontmatter.lua
+--- and latex builds it there too, but latex also has to know before the body
+--- is written, since a masthead is what decides whether the article opens with
+--- twocolumn or with a masthead handed to twocolumn.
+function M.has_journal_masthead(meta)
+  if meta == nil then return false end
+  local fields = { "url", "logo", "issn", "copyrightnotice", "copyrighttext" }
+  if M.journal_title(meta) or M.journal_issue_line(meta) then return true end
+  for _, name in ipairs(fields) do
+    if M.journal_field(meta, name) then return true end
+  end
+  return false
+end
+
 local function script_directory()
   return kFolder
 end
@@ -294,6 +308,136 @@ function M.extension_file_relative(name)
   for _ = same + 1, #from do parts[#parts + 1] = ".." end
   for i = same + 1, #to do parts[#parts + 1] = to[i] end
   return table.concat(parts, "/")
+end
+
+-- The colour a document asks a link to take -------------------------------
+--
+-- Quarto's fields are latex's: linkcolor for a link inside the document,
+-- urlcolor for one that leaves it, citecolor for a citation, filecolor for a
+-- file, and toccolor for the lists of contents, figures and tables. Each
+-- names either one of the colours xcolor defines out of the box or an html
+-- code, #rrggbb or #rgb.
+--
+-- latex resolves such a name itself. .docx and .html cannot: word wants six
+-- hex digits and a stylesheet wants a colour css knows, and the two agree on
+-- fewer names than one would hope -- css green is 008000 where xcolor's is
+-- 00FF00. The table below is xcolor's, so that a document that names a
+-- colour gets the same colour in every format apaquarto writes.
+local xcolors = {
+  red = "FF0000", green = "00FF00", blue = "0000FF",
+  cyan = "00FFFF", magenta = "FF00FF", yellow = "FFFF00",
+  black = "000000", white = "FFFFFF", gray = "808080", grey = "808080",
+  darkgray = "404040", darkgrey = "404040",
+  lightgray = "BFBFBF", lightgrey = "BFBFBF",
+  brown = "BF8040", lime = "BFFF00", olive = "808000",
+  orange = "FF8000", pink = "FFBFBF", purple = "BF0040",
+  teal = "008080", violet = "800080",
+  -- apaquarto's own, which the pdf format names in every colour field and
+  -- which apalatex.tex defines. It is typst's blue.
+  apalink = "0074D9",
+}
+
+-- The identifier prefixes a float can carry.
+--
+-- fig and tbl are quarto's own. A document may declare other kinds of float
+-- under crossref.custom --- an Illustration, keyed ill, is the one apaquarto
+-- ships --- and such a float is a float like the rest: it takes the same
+-- title, the same caption and the same note, and in .docx the same styles,
+-- which are what hold a note on the page with the thing it describes. So the
+-- filters that do that work ask here rather than naming fig and tbl
+-- themselves.
+function M.float_prefixes(meta)
+  local prefixes = { fig = true, tbl = true }
+  local custom = meta and meta.crossref and meta.crossref.custom
+  if custom then
+    for _, entry in ipairs(custom) do
+      if entry.key then
+        prefixes[M.stringify(entry.key)] = true
+      end
+    end
+  end
+  return prefixes
+end
+
+-- Whether an identifier is a float's, given the prefixes above
+function M.is_float(identifier, prefixes)
+  if identifier == nil or identifier == "" then return false end
+  local prefix = identifier:match("^(%a+)%-")
+  return prefix ~= nil and prefixes[prefix] == true
+end
+
+-- Six hex digits, upper cased, for a name or an html code; nil for anything
+-- neither table nor code knows, which leaves the format with what it had.
+function M.colour_hex(value)
+  if value == nil then return nil end
+  local name = M.stringify(value):gsub("^%s*(.-)%s*$", "%1")
+  if name == "" or name == "false" then return nil end
+  local code = name:match("^#(%x%x%x%x%x%x)$")
+  if code then return code:upper() end
+  local short = name:match("^#(%x%x%x)$")
+  if short then
+    return (short:upper():gsub("(%x)", "%1%1"))
+  end
+  return xcolors[name:lower()]
+end
+
+-- The page a Temple dissertation or thesis is set on, in inches: 1.5" at the
+-- left, where the work is bound, and 1" elsewhere. That is what the Graduate
+-- School's handbook asks for, and it says the margins are "the same for the
+-- entire manuscript, including front matter", which is why the title page is
+-- set on them too. The Graduate School's own title-page template uses 1" all
+-- round; the handbook is what the work is held to.
+--
+-- Kept here because three files need them: the title page is broken against
+-- the measure they leave (thesisfrontmatter.lua), the pdf sets them as its
+-- geometry, and the .docx takes them from its reference document
+-- (docxreferencedoc.lua).
+M.thesis_margins = { left = 1.5, right = 1.0, top = 1.0, bottom = 1.0 }
+M.thesis_paper_width = 8.5
+
+-- The title page is the exception. The dissertations Temple publishes set
+-- theirs on 1" all round, so that the block of it stands at the centre of the
+-- page rather than at the centre of a text block pushed right by the binding
+-- margin, and that is the page the Graduate School's own template draws. It
+-- is one page and it is set on its own, so it takes margins of its own.
+M.thesis_title_margins = { left = 1.0, right = 1.0, top = 1.0, bottom = 1.0 }
+
+local function measure(margins)
+  return M.thesis_paper_width - margins.left - margins.right
+end
+
+function M.thesis_measure()
+  return measure(M.thesis_margins)
+end
+
+function M.thesis_title_measure()
+  return measure(M.thesis_title_margins)
+end
+
+-- How many levels of heading a table of contents lists, which is quarto's
+-- own toc-depth. Nothing read it before: .html and .docx counted three
+-- levels because that is what was written into them, the .pdf three because
+-- that is the article class's own, and typst listed every level there was.
+-- One reading of the field, so that a contents is the same contents in all
+-- four.
+--
+-- Quarto hands it to pandoc as a writer option rather than leaving it in the
+-- metadata --- toc-depth is pandoc's own field, as toc is --- so that is
+-- where it is read from, and the metadata is looked at only for a document
+-- that puts it there itself. Pandoc's own default is three, so a document
+-- that never mentions the field reads three here as well.
+function M.toc_depth(meta, fallback)
+  local written = nil
+  if PANDOC_WRITER_OPTIONS ~= nil then
+    written = PANDOC_WRITER_OPTIONS.toc_depth
+  end
+  if written == nil and meta ~= nil then written = meta["toc-depth"] end
+  if written == nil then return fallback end
+  local depth = tonumber(M.stringify(written))
+  if depth == nil then return fallback end
+  depth = math.floor(depth)
+  if depth < 1 then return 1 end
+  return depth
 end
 
 -- if any value in table
