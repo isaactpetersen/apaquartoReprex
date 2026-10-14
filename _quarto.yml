@@ -18,6 +18,7 @@ format:
     code-link: true
     code-fold: show
     code-line-numbers: true
+    code-overflow: scroll
     toc: true
     keep-md: true
     link-external-newwindow: true

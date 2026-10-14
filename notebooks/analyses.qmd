@@ -39,6 +39,8 @@ format:
 #|   - "**Panel A**: Insert figure note here."
 #|   - "**Panel B**: Insert figure note here."
 
+# INSERT LONG CODE LINE HERE: THIS CODE SECTION SHOULD NOT WRAP; IT SHOULD BE ABLE TO BE READ BY A HORIZONTAL SCROLL BAR
+
 plot(mtcars)
 ```
 
