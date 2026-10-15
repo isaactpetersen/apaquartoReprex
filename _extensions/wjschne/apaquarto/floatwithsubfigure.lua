@@ -5,12 +5,8 @@ local panelword = "Panel"
 local letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 local function getnote(m)
-  if m.language and m.language["figure-table-note"] then
-    beginapanote = pandoc.utils.stringify(m.language["figure-table-note"])
-  end
-  if m.language and m.language["figure-panel"] then
-    panelword = pandoc.utils.stringify(m.language["figure-panel"])
-  end
+  beginapanote = utilsapa.lang(m, "figure-table-note", beginapanote)
+  panelword = utilsapa.lang(m, "figure-panel", panelword)
 end
 
 -- APA labels the panels of a figure Panel A, Panel B, and describes them in
@@ -276,19 +272,19 @@ local mynote = function(float)
     end
 
     if float.attributes['apa-note'] then
-      prefix = pandoc.Para({ pandoc.Emph(pandoc.Str(beginapanote)), pandoc.Str("."), pandoc.Space() })
-      apanotedivs = utilsapa.make_note(float.attributes['apa-note'], prefix)
+      local prefix = pandoc.Para({ pandoc.Emph(pandoc.Str(beginapanote)), pandoc.Str("."), pandoc.Space() })
+      local apanotedivs = utilsapa.make_note(float.attributes['apa-note'], prefix)
 
-      -- Say that the note has been written, so that a format which also writes
-      -- notes of its own -- typst does, in formattypst.lua -- leaves this one
-      -- alone rather than printing it a second time. The apa-note attribute
+      -- Say that the note has been written, so that a filter which also writes
+      -- notes of its own -- floatnote.lua, floatlatex.lua and apanote.lua do
+      -- -- leaves this one alone rather than printing it a second time. The apa-note attribute
       -- stays where it is, since apafloat.lua reads it afterwards to tell a
       -- float that has a note from one that has none.
       --
       -- The note goes inside the float for every format. Returning it beside
       -- the float instead costs the float the caption and label quarto
       -- registered for it, in .docx as well as in typst.
-      float.attributes["apa-note-written"] = "true"
+      float.attributes[utilsapa.note_written] = utilsapa.note_mark()
 
       note_gets_its_own_row(float)
       float.content:extend({ apanotedivs })

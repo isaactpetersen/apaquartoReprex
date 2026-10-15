@@ -1,9 +1,9 @@
 -- Sets the blocks apaquarto's filters produce, in latex.
 --
 -- This is the plain latex format's counterpart to typst/formattypst.lua. By
--- the time it runs, frontmatter.lua has written the title page, apanote.lua
--- has written the notes and apacaption.lua the figure and table titles, all as
--- ordinary divs and headers carrying the classes those filters use. Nothing
+-- the time it runs, frontmatter.lua has written the title page and
+-- floatlatex.lua the figures and tables with their titles and notes, the
+-- notes as ordinary divs carrying the classes those filters use. Nothing
 -- here decides what a document says; it only wraps each of those in the
 -- command that apalatex.tex defines for it.
 --
@@ -70,8 +70,7 @@ end
 -- Whether the writer asked for numbered lines, which APA wants on a
 -- manuscript sent out for review.
 local function asked_for_line_numbers(m)
-  if m["numbered-lines"] == nil then return false end
-  return utilsapa.stringify(m["numbered-lines"]) ~= "false"
+  return utilsapa.flag(m, "numbered-lines")
 end
 
 -- The number the first page carries, for an article whose pages are numbered
@@ -87,9 +86,8 @@ end
 -- its own and the field rewritten to name that colour. A field naming a
 -- colour xcolor already knows -- teal, violet, one of the rest -- is left
 -- alone, which is how they have always worked.
-local colour_fields = {
-  "linkcolor", "urlcolor", "citecolor", "filecolor", "toccolor"
-}
+local colour_fields = { table.unpack(utilsapa.link_fields) }
+table.insert(colour_fields, "toccolor")
 
 local function define_html_colours(m)
   for _, field in ipairs(colour_fields) do
@@ -134,8 +132,7 @@ end
 local function file_link(link)
   if file_colour == nil then return nil end
   if link.attributes["apa-filecolor"] ~= nil then return nil end
-  local target = link.target
-  if target:match("^#") or target:match("^%a[%w+.-]*:") then return nil end
+  if utilsapa.link_field(link.target) ~= "filecolor" then return nil end
   link.attributes["apa-filecolor"] = "1"
   return pandoc.Inlines({
     pandoc.RawInline("latex",
@@ -168,8 +165,44 @@ local function asked_for_first_page(m)
   return nil
 end
 
+-- The document's own geometry options, as a list of strings: written as one
+-- string ("margin=2in") or as a list of them.
+local function asked_for_geometry(m)
+  local out = pandoc.List({})
+  local value = m.geometry
+  if value == nil then return out end
+  if pandoc.utils.type(value) == "List" then
+    for _, item in ipairs(value) do out:insert(utilsapa.stringify(item)) end
+  else
+    out:insert(utilsapa.stringify(value))
+  end
+  return out
+end
+
 local function meta(m)
-  if m.documentmode then mode = utilsapa.stringify(m.documentmode) end
+  mode = utilsapa.mode(m)
+  -- The page each mode is set on. A document's margin field is written after
+  -- it, the same field typst and .docx read, and then its own geometry
+  -- options, for anything else geometry can do. geometry takes the last
+  -- value it is given for a key, so a writer's margins win in every mode
+  -- while what they leave unsaid --- the head and foot of a journal page,
+  -- say --- stays as the mode sets it, and geometry wins over margin where
+  -- both name a side. A dissertation's front matter sets its own margins
+  -- page by page (thesislatex.lua), and \restoregeometry hands the body back
+  -- these.
+  local asked_margin = utilsapa.margin_sides(m.margin, true) or {}
+  local asked_geometry = asked_for_geometry(m)
+  local mode_geometry = { "margin=1in" }
+  if mode == "thesis" then
+    -- A dissertation is bound at the left and wants more there.
+    local margins = utilsapa.thesis_margins
+    mode_geometry = {
+      string.format("left=%.2fin", margins.left),
+      string.format("right=%.2fin", margins.right),
+      string.format("top=%.2fin", margins.top),
+      string.format("bottom=%.2fin", margins.bottom),
+    }
+  end
   if m.shorttitle then
     shorttitle = utilsapa.stringify(m.shorttitle)
   elseif m.title then
@@ -177,6 +210,26 @@ local function meta(m)
   end
   -- The running head is a preamble setting, so it goes in the header rather
   -- than into the body where the rest of this filter works.
+  -- The headings of the lists, in the document's language
+  local function latex_text(text)
+    return (text:gsub("([\\{}%$&#%^_~%%])", "\\%1"))
+  end
+  for _, pair in ipairs({
+    { "apacontentsname", "toc-title-document" },
+    { "apalistfigurename", "crossref-lof-title" },
+    { "apalisttablename", "crossref-lot-title" },
+  }) do
+    local macro, key = pair[1], pair[2]
+    local word = utilsapa.lang(m, key, nil)
+    if word then
+      quarto.doc.include_text("in-header",
+        "\\renewcommand{\\" .. macro .. "}{" .. latex_text(word) .. "}")
+    end
+  end
+
+  -- suppress-short-title leaves the running head empty, as it does in typst
+  -- and .docx: \apashorttitle is empty until something sets it.
+  if utilsapa.flag(m, "suppress-short-title") then shorttitle = nil end
   if shorttitle and shorttitle ~= "" then
     quarto.doc.include_text("in-header",
       "\\setapashorttitle{" .. shorttitle:gsub("([\\{}%$&#%^_~%%])", "\\%1") .. "}")
@@ -187,6 +240,29 @@ local function meta(m)
   -- them a second time. Leaving them would print the title, the authors and
   -- the abstract twice over, and would call \maketitle, which puts the first
   -- page into the plain page style and loses the running head from it.
+  --
+  -- The pdf's title and author fields come from title-meta and author-meta,
+  -- which pandoc fills in from the title and author, so they are given here
+  -- while those are still known. A pdf standard such as ua-2 fails without a
+  -- dc:title in the metadata.
+  if m.title and not m["title-meta"] then
+    m["title-meta"] = pandoc.utils.stringify(m.title)
+  end
+  if m["by-author"] and not m["author-meta"] then
+    local names = {}
+    for _, a in ipairs(m["by-author"]) do
+      local name = a.name
+      if type(name) == "table" and name.literal then
+        name = name.literal
+      end
+      if name then
+        names[#names + 1] = pandoc.utils.stringify(name)
+      end
+    end
+    if #names > 0 then
+      m["author-meta"] = table.concat(names, ", ")
+    end
+  end
   m.title = nil
   m.subtitle = nil
   m.author = nil
@@ -223,9 +299,24 @@ local function meta(m)
     quarto.doc.include_text("in-header", "\\apastudenthead")
   end
 
+  -- The line spacing of a table's rows: double unless table-spacing, or a
+  -- journal or doc mode, asks for single or one-and-a-half
+  -- (\apatablestretch in apalatex.tex).
+  local tablespacing = utilsapa.table_spacing(m)
+  if tablespacing ~= "double" then
+    quarto.doc.include_text("in-header", "\\renewcommand{\\apatablestretch}{"
+      .. utilsapa.table_stretch[tablespacing] .. "}")
+  end
+
+  -- A block quotation half an inch in on the left and not at all on the
+  -- right. Journal mode and a dissertation set their own below.
+  if mode ~= "jou" and mode ~= "thesis" then
+    quarto.doc.include_text("in-header", "\\apaquote")
+  end
+
   -- A dissertation sets a block quotation, a note and the entries of its
-  -- reference list single spaced, indents a quotation half an inch from both
-  -- margins and a note's first line half an inch, and keeps a page from
+  -- reference list single spaced, indents a quotation half an inch on the
+  -- left and a note's first line half an inch, and keeps a page from
   -- breaking after the first line of a paragraph or before its last. The reference list is patched at the start of the document
   -- rather than in the preamble: the environment quarto writes it in is one
   -- of pandoc's own, and where an include lands among those is a detail of
@@ -266,19 +357,20 @@ local function meta(m)
     -- (x: 0.75in, y: 1in) there. Written out side by side rather than as one
     -- margin, which had set the foot at three quarters too and left this
     -- format eighteen points more text on every page than typst had.
-    m.geometry = pandoc.MetaList({
-      pandoc.MetaString("left=0.75in"),
-      pandoc.MetaString("right=0.75in"),
-      pandoc.MetaString("top=0.75in"),
-      pandoc.MetaString("bottom=1in"),
-      pandoc.MetaString("includehead"),
-      pandoc.MetaString("headheight=13pt"),
-      pandoc.MetaString("headsep=4pt"),
+    mode_geometry = {
+      "left=0.75in",
+      "right=0.75in",
+      "top=0.75in",
+      "bottom=1in",
+      "includehead",
+      "headheight=13pt",
+      "headsep=4pt",
       -- The opening page carries its number at the foot. footskip is measured
       -- to the baseline, so this sets the number about eleven points under the
       -- text block, which is where the Journal of Educational Psychology puts
       -- it; latex's own leaves it half an inch down.
-      pandoc.MetaString("footskip=18pt") })
+      "footskip=18pt",
+    }
     quarto.doc.include_text("in-header", "\\singlespacing")
     -- Two columns, asked for at the start of the document. A journal that has
     -- a masthead asks for them differently: the masthead is handed to
@@ -294,6 +386,10 @@ local function meta(m)
     -- References hang by the paragraph indent rather than by a manuscript's
     -- half inch, which is what the typst format does in this mode.
     quarto.doc.include_text("in-header", "\\apajouhangindent")
+    -- Headings the size and spacing of a published APA article's.
+    quarto.doc.include_text("in-header", "\\apajouheadings")
+    -- Block quotations indented on the left only.
+    quarto.doc.include_text("in-header", "\\apajouquote")
     local authors = m["jou-running-authors"]
     if authors then
       quarto.doc.include_text("in-header",
@@ -302,6 +398,21 @@ local function meta(m)
           "\\%1") .. "}")
     end
   end
+  local geometry = pandoc.MetaList({})
+  for _, option in ipairs(mode_geometry) do
+    geometry:insert(pandoc.MetaString(option))
+  end
+  for _, side in ipairs({ "left", "right", "top", "bottom" }) do
+    if asked_margin[side] then
+      geometry:insert(pandoc.MetaString(
+        string.format("%s=%gin", side, asked_margin[side])))
+    end
+  end
+  for _, option in ipairs(asked_geometry) do
+    geometry:insert(pandoc.MetaString(option))
+  end
+  m.geometry = geometry
+
   -- Numbered lines, which apa7 draws with lineno and so does this. The size,
   -- the right alignment and the distance from the text are lineno's own,
   -- which is what apa7 leaves them at; journal mode moves the number closer
@@ -437,12 +548,170 @@ local function render_front(list, jou)
   return out
 end
 
+-- ---------------------------------------------------------------------------
+-- The front matter
+
+local layout = require("frontmatterlayout")
+local List = require 'pandoc.List'
+local stringify = utilsapa.stringify
+
+-- Journal masthead for jou mode, following the way the journals set one: the
+-- journal's name at the right of the page with its logo opposite, a rule
+-- under both, and the issue on the right beneath it with the copyright on the
+-- left. Journal of Educational Psychology is the model.
+--
+-- The fields belong under journal, but an author who writes any of them at
+-- the top level gets the same reading of them, which is how volume,
+-- copyrightnotice and copyrighttext were given before there was anywhere else
+-- to put them.
+
+local journal_title = utilsapa.journal_title
+local journal_field = utilsapa.journal_field
+local journal_issue_line = utilsapa.journal_issue_line
+local journal_copyright = utilsapa.journal_copyright
+
+-- The apaquarto logo, asked for by writing logo: default. utilsapa finds the
+-- extension folder it ships in.
+local kDefaultLogo = "default"
+local kShippedLogo = "apaquarto-logo.png"
+
+-- One side of the masthead's lower row as inlines rather than blocks, which is
+-- what the latex masthead passes to a command.
+local function masthead_inlines(first, second)
+  local out = pandoc.Inlines({})
+  if first then out:extend(first) end
+  if second then
+    if #out > 0 then out:insert(pandoc.LineBreak()) end
+    out:extend(second)
+  end
+  if #out == 0 then return nil end
+  return out
+end
+
+-- The journal's logo, resolved from logo: default to the file apaquarto ships.
+-- Returns the path as the writer in question wants to read it, or nil.
+local function masthead_logo(meta, resolve)
+  local logo = journal_field(meta, "logo")
+  if not logo then return nil end
+  if stringify(logo) ~= kDefaultLogo then return stringify(logo) end
+  local shipped = resolve(kShippedLogo)
+  if shipped then return shipped end
+  quarto.log.warning(
+    "logo: default could not find " .. kShippedLogo ..
+    " in the apaquarto extension folder, so the masthead has no logo.")
+  return nil
+end
+
+-- The masthead for the .pdf, built out of the commands apalatex.tex defines
+-- and set in a div formatlatex.lua knows to hand to \twocolumn. The band is
+-- the one typst/formattypst.lua sets for typst, off the Journal of
+-- Educational Psychology, and the pieces go in the same order: the logo and
+-- the journal's name on one line, a rule, then the copyright and the issn at
+-- the left with the issue and the doi at the right.
+local function latex_journal_metadata(meta)
+  if not utilsapa.has_journal_masthead(meta) then return nil end
+
+  local title = journal_title(meta)
+  local logo = masthead_logo(meta, utilsapa.extension_file_relative)
+  local url = journal_field(meta, "url")
+  local issn = journal_field(meta, "issn")
+
+  local url_line
+  if url then url_line = List:new { pandoc.Link(url, stringify(url)) } end
+  local issn_line
+  if issn then
+    issn_line = List:new { pandoc.Str("ISSN:"), pandoc.Space() }
+    issn_line:extend(issn)
+  end
+
+  local left = masthead_inlines(journal_copyright(meta), issn_line)
+  local right = masthead_inlines(journal_issue_line(meta), url_line)
+
+  local blocks = List:new {}
+
+  local head = pandoc.Inlines({ pandoc.RawInline("latex",
+    "\\apamastheadhead{" ..
+    (logo and ("\\apamastheadlogo{" .. logo:gsub("\\", "/") .. "}") or "") ..
+    "}{") })
+  if title then head:extend(title) end
+  head:insert(pandoc.RawInline("latex", "}"))
+  blocks:insert(pandoc.Para(head))
+
+  blocks:insert(pandoc.RawBlock("latex", "\\apamastheadline"))
+
+  if left or right then
+    local foot = pandoc.Inlines({
+      pandoc.RawInline("latex", "\\apamastheadfoot{") })
+    if left then foot:extend(left) end
+    foot:insert(pandoc.RawInline("latex", "}{"))
+    if right then foot:extend(right) end
+    foot:insert(pandoc.RawInline("latex", "}"))
+    blocks:insert(pandoc.Para(foot))
+  end
+
+  return pandoc.Div(blocks, pandoc.Attr("", { "JournalMasthead" }))
+end
+
+-- A published article, laid out the way the typst one is: the masthead, the
+-- title and the byline, then the abstract and what follows it in a narrower
+-- block, all of it spanning the page; the author note goes to the foot of the
+-- first column. Each part is a div of its own (JournalMasthead, JournalWide,
+-- JournalNarrow, JournalNote), which blocks() below writes out. The three
+-- list markers are taken out first: they would otherwise be swept into the
+-- masthead's own divs, and the lists a journal paper asked for would never
+-- appear.
+local function journal(meta, front)
+  local kept, lists = layout.take_list_markers(front)
+  local head, narrow, notes, tail = layout.split_journal(kept)
+  local out = List:new {}
+  local masthead = latex_journal_metadata(meta)
+  if masthead then out:extend({ masthead }) end
+  out:extend({ pandoc.Div(head, pandoc.Attr("", { "JournalWide" })) })
+  if #narrow > 0 then
+    out:extend({ pandoc.Div(layout.box_impact(narrow,
+      raw("\\begin{apajouimpact}"), raw("\\end{apajouimpact}")),
+      pandoc.Attr("", { "JournalNarrow" })) })
+  end
+  if #notes > 0 then
+    -- The orcid lines are set off from the prose of the note, and the icon
+    -- sized to the note's text.
+    out:extend({ pandoc.Div(
+      layout.set_off_orcid(layout.fit_orcid(notes),
+        raw("\\begin{apajouorcid}"), raw("\\end{apajouorcid}")),
+      pandoc.Attr("", { "JournalNote" })) })
+  end
+  out:extend(tail)
+  out:extend(lists)
+  return out
+end
+
+-- The document's blocks with the front matter frontmatter.lua handed over
+-- laid out for the mode: sorted into the parts of a journal article, or
+-- otherwise put back where it stood.
+local function lay_out_front(doc)
+  local out = pandoc.List({})
+  for _, block in ipairs(doc.blocks) do
+    if block.t == "Div" and block.classes:includes(layout.kFrontMatterClass) then
+      if mode == "jou" then
+        out:extend(journal(doc.meta, List:new(block.content)))
+      else
+        out:extend(block.content)
+      end
+    else
+      out:insert(block)
+    end
+  end
+  return out
+end
+
 local function blocks(doc)
   local out = pandoc.List({})
 
-  -- The front matter of a published article, which frontmatter.lua has
-  -- already sorted into the masthead, the title and byline, the abstract and
-  -- what follows it, and the author note.
+  doc.blocks = lay_out_front(doc)
+
+  -- The front matter of a published article, which lay_out_front has
+  -- sorted into the masthead, the title and byline, the abstract and what
+  -- follows it, and the author note.
   --
   -- The first three span the page, which in two columns only the optional
   -- argument of \twocolumn can do, and \twocolumn has to be the first thing
@@ -604,6 +873,10 @@ end
 local function div(el)
   if el.classes:includes("FigureNote") then
     return environment("apafloatnote", el.content)
+  end
+  -- The dash attribution under a block quotation (apaquote.lua).
+  if el.classes:includes("quote-attribution") then
+    return environment("apaquoteattribution", el.content)
   end
   -- The reference list is left exactly as it is.
   --

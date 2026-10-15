@@ -215,6 +215,24 @@ end)()
 --- and latex builds it there too, but latex also has to know before the body
 --- is written, since a masthead is what decides whether the article opens with
 --- twocolumn or with a masthead handed to twocolumn.
+-- "(c) 2025 The Author(s)", from whichever of copyrightnotice and
+-- copyrighttext was given, for the journal masthead; nil when neither was.
+function M.journal_copyright(meta)
+  local notice = M.journal_field(meta, "copyrightnotice")
+  local text = M.journal_field(meta, "copyrighttext")
+  if not (notice or text) then return nil end
+  local out = pandoc.List({ pandoc.Str("\u{00A9}") })
+  if notice then
+    out:extend({ pandoc.Space() })
+    out:extend(notice)
+  end
+  if text then
+    out:extend({ pandoc.Space() })
+    out:extend(text)
+  end
+  return out
+end
+
 function M.has_journal_masthead(meta)
   if meta == nil then return false end
   local fields = { "url", "logo", "issn", "copyrightnotice", "copyrighttext" }
@@ -366,6 +384,36 @@ function M.is_float(identifier, prefixes)
   return prefix ~= nil and prefixes[prefix] == true
 end
 
+-- The four fields that give a link its colour, one for each kind of link.
+-- toccolor, which colours the entries of a contents list, is the fifth of
+-- the colour fields but belongs to no kind of link.
+M.link_fields = { "linkcolor", "urlcolor", "citecolor", "filecolor" }
+
+-- Which of those fields a link's target asks for. The reading latex makes:
+-- a citation points at the bibliography quarto writes, another anchor is a
+-- cross reference or a link to a heading, anything with a scheme leaves the
+-- document, and what is left is a path to a file.
+function M.link_field(target)
+  if target:match("^#ref%-") then return "citecolor" end
+  if target:match("^#") then return "linkcolor" end
+  if target:match("^%a[%w+.-]*:") then return "urlcolor" end
+  return "filecolor"
+end
+
+-- The headings a table of contents lists: every heading down to depth that
+-- is not marked unlisted, in the order they come.
+function M.contents_headings(blocks, depth)
+  local out = pandoc.List({})
+  pandoc.Blocks(blocks):walk {
+    Header = function(h)
+      if h.level > depth then return nil end
+      if h.classes:includes("unlisted") then return nil end
+      out:insert(h)
+    end
+  }
+  return out
+end
+
 -- Six hex digits, upper cased, for a name or an html code; nil for anything
 -- neither table nor code knows, which leaves the format with what it had.
 function M.colour_hex(value)
@@ -402,16 +450,140 @@ M.thesis_paper_width = 8.5
 -- is one page and it is set on its own, so it takes margins of its own.
 M.thesis_title_margins = { left = 1.0, right = 1.0, top = 1.0, bottom = 1.0 }
 
-local function measure(margins)
+-- The width of the text block a page's margins leave, in inches.
+function M.thesis_measure(margins)
+  margins = margins or M.thesis_margins
   return M.thesis_paper_width - margins.left - margins.right
 end
 
-function M.thesis_measure()
-  return measure(M.thesis_margins)
+function M.thesis_title_measure(margins)
+  return M.thesis_measure(margins or M.thesis_title_margins)
 end
 
-function M.thesis_title_measure()
-  return measure(M.thesis_title_margins)
+-- Margins a document asks for --------------------------------------------
+
+local kInchesPer = { ["in"] = 1, cm = 1 / 2.54, mm = 1 / 25.4, pt = 1 / 72 }
+
+-- A length as inches: "1in", "2.5cm", "25mm" or "72pt". nil for anything
+-- else.
+function M.length_in_inches(value)
+  if value == nil then return nil end
+  local number, unit = M.trim(pandoc.utils.stringify(value))
+    :match("^([%d%.]+)%s*(%a+)$")
+  number = tonumber(number)
+  local per = unit and kInchesPer[unit:lower()]
+  if number == nil or per == nil then return nil end
+  return number * per
+end
+
+-- A margin field read the way typst reads one, since the typst format takes
+-- the same field: one length for every side, or a map of x (left and right),
+-- y (top and bottom), rest, and the sides themselves, the more particular key
+-- winning. Sides as inches; nil when it names none. With warn, a length
+-- that cannot be read is said so and left out.
+function M.margin_sides(value, warn)
+  if value == nil then return nil end
+  local sides = {}
+  local function set(names, raw)
+    local inches = M.length_in_inches(raw)
+    if inches == nil then
+      if warn then
+        quarto.log.warning("margin: " .. pandoc.utils.stringify(raw) ..
+          " is not a length apaquarto can use (in, cm, mm or pt), so it" ..
+          " was left out.")
+      end
+      return
+    end
+    for _, side in ipairs(names) do sides[side] = inches end
+  end
+  local kind = pandoc.utils.type(value)
+  if kind == "Inlines" or kind == "string" then
+    set({ "top", "right", "bottom", "left" }, value)
+  elseif type(value) == "table" then
+    if value.rest then set({ "top", "right", "bottom", "left" }, value.rest) end
+    if value.x then set({ "left", "right" }, value.x) end
+    if value.y then set({ "top", "bottom" }, value.y) end
+    for _, side in ipairs({ "top", "right", "bottom", "left" }) do
+      if value[side] then set({ side }, value[side]) end
+    end
+  end
+  if next(sides) == nil then return nil end
+  return sides
+end
+
+-- The margins latex's geometry options ask for, as inches: margin, hmargin
+-- and vmargin, and the sides by any of their names. Options that do not set
+-- a margin (includehead, footskip) are passed over, and so is a value that is
+-- not a plain length. Later options win, as they do in geometry itself.
+local kGeometrySides = {
+  margin = { "top", "right", "bottom", "left" },
+  hmargin = { "left", "right" }, vmargin = { "top", "bottom" },
+  left = { "left" }, lmargin = { "left" }, inner = { "left" },
+  right = { "right" }, rmargin = { "right" }, outer = { "right" },
+  top = { "top" }, tmargin = { "top" },
+  bottom = { "bottom" }, bmargin = { "bottom" },
+}
+
+function M.geometry_sides(value)
+  if value == nil then return nil end
+  local options = {}
+  if pandoc.utils.type(value) == "List" then
+    for _, item in ipairs(value) do options[#options + 1] = M.stringify(item) end
+  else
+    options[1] = M.stringify(value)
+  end
+  local sides = {}
+  for _, written in ipairs(options) do
+    for option in written:gmatch("[^,]+") do
+      local key, length = option:match("^%s*([%a]+)%s*=%s*(.-)%s*$")
+      local names = key and kGeometrySides[key]
+      local inches = names and M.length_in_inches(length)
+      if inches then
+        for _, side in ipairs(names) do sides[side] = inches end
+      end
+    end
+  end
+  if next(sides) == nil then return nil end
+  return sides
+end
+
+-- The margins the document asks for: margin in every format, and in the .pdf
+-- its geometry options laid over that, which is the order formatlatex.lua
+-- writes them in. nil when it asks for none. warn as for margin_sides.
+function M.asked_margins(meta, warn)
+  if meta == nil then return nil end
+  local sides = M.margin_sides(meta.margin, warn)
+  if FORMAT == "latex" then
+    local geometry = M.geometry_sides(meta.geometry)
+    if geometry then
+      sides = sides or {}
+      for side, inches in pairs(geometry) do sides[side] = inches end
+    end
+  end
+  return sides
+end
+
+local function overlay(base, sides)
+  local out = {}
+  for side, inches in pairs(base) do out[side] = inches end
+  for side, inches in pairs(sides or {}) do out[side] = inches end
+  return out
+end
+
+-- A dissertation's margins, the Graduate School's with whatever sides the
+-- document names laid over them. Every page but the title page takes these,
+-- the front matter as well as the body, since the handbook asks for the
+-- margins to be "the same for the entire manuscript, including front matter".
+function M.thesis_body_margins(meta, warn)
+  return overlay(M.thesis_margins, M.asked_margins(meta, warn))
+end
+
+-- The title page's: 1" all round unless thesis: title-margin says otherwise,
+-- in the same shape as margin.
+function M.thesis_page_one_margins(meta)
+  local thesis = meta and meta.thesis
+  return overlay(M.thesis_title_margins,
+    M.margin_sides(thesis and thesis["title-margin"], true))
 end
 
 -- How many levels of heading a table of contents lists, which is quarto's
@@ -440,14 +612,210 @@ function M.toc_depth(meta, fallback)
   return depth
 end
 
--- if any value in table
-function M.containsValue(tbl, value)
-  for _, v in pairs(tbl) do
-    if v == value then
-      return true
+-- The apa-note of each plain markdown table as the writer typed it, by the
+-- table's identifier, which markdowntable.lua leaves in the metadata. Quarto
+-- rebuilds a markdown table's attributes from its caption, flattening the
+-- note's emphasis, code and raw spans, so a note writer asks here first and
+-- takes the attribute only for a table that is not listed.
+function M.table_notes(meta)
+  local notes = {}
+  local recovered = meta and meta["apa-table-notes"]
+  if recovered then
+    for id, note in pairs(recovered) do
+      notes[id] = pandoc.utils.stringify(note)
     end
   end
-  return false
+  return notes
+end
+
+-- The mark a float carries in apa-note-written once its note has been
+-- written, so that no other filter writes it again.
+--
+-- What is marked is which document the note was written for, not merely that
+-- it was written. A manuscript project renders a notebook on its own before
+-- the article embeds a cell out of it, and the cell arrives carrying whatever
+-- was marked on it during that render -- while the note itself stays behind,
+-- since only the cell's output is embedded. A mark that said no more than
+-- "written" would silence the article and lose the note altogether. Naming the
+-- document tells the two apart: the same mark means the note has been written
+-- in this render, a different one means it belongs to another document and has
+-- still to be written here.
+--
+-- The mark is a short digest of the document's path. The path itself would do
+-- the job but would also be written into the output, where a reader has no use
+-- for someone else's directory names.
+M.note_written = "apa-note-written"
+local note_mark_value = nil
+function M.note_mark()
+  if note_mark_value ~= nil then return note_mark_value end
+  local ok, input = pcall(function() return quarto.doc.input_file end)
+  if not ok or not input or input == "" then
+    note_mark_value = "true"
+    return note_mark_value
+  end
+  local hash = 2166136261
+  for i = 1, #input do
+    hash = (hash ~ input:byte(i)) * 16777619 % 4294967296
+  end
+  note_mark_value = string.format("%08x", hash)
+  return note_mark_value
+end
+
+-- Whether a float's note has been written in this render
+function M.note_is_written(el)
+  return el.attributes ~= nil
+    and el.attributes[M.note_written] == M.note_mark()
+end
+
+-- A word from meta.language, or the fallback when the document has none.
+--
+-- apalanguage.lua fills in every word it knows before the other filters read
+-- them, so inside the apaquarto formats the fallback is seldom reached. The
+-- apanote extension runs a few of these filters without apalanguage.lua,
+-- though, so every caller still names the English word it wants.
+function M.lang(meta, key, fallback)
+  local value = meta and meta.language and meta.language[key]
+  if value == nil then return fallback end
+  return pandoc.utils.stringify(value)
+end
+
+-- The documentmode, as the short code documentmode.lua leaves it in: man,
+-- jou, doc, stu or thesis. A document that names none is a manuscript.
+function M.mode(meta)
+  if meta == nil or meta.documentmode == nil then return "man" end
+  return pandoc.utils.stringify(meta.documentmode)
+end
+
+-- Whether a yes-or-no field is on. Absent is off, and so is false; anything
+-- else the writer put there is taken as asking for it, which is how latex
+-- and typst have always read numbered-lines.
+function M.flag(meta, key)
+  local value = meta and meta[key]
+  if value == nil then return false end
+  return pandoc.utils.stringify(value) ~= "false"
+end
+
+-- The line spacing of a table's rows, from table-spacing: "single",
+-- "onehalf" or "double", or 1, 1.5 or 2 meaning the same. APA lets a table
+-- body be single, one-and-a-half or double spaced. Left unset it is double,
+-- the body's spacing, except in journal and doc modes, whose body is not
+-- double spaced and whose tables are single. Each format sets the spacing by
+-- its own measure of a line: in the .pdf and typst the rows of a
+-- single-spaced table stand 14.5pt apart and of a double-spaced one 24pt, the
+-- body's double spacing; Word's lines are a little deeper. Anything else
+-- falls back to the default with a warning.
+local table_spacings = {
+  ["single"] = "single", ["1"] = "single",
+  ["onehalf"] = "onehalf", ["one-and-a-half"] = "onehalf", ["1.5"] = "onehalf",
+  ["double"] = "double", ["2"] = "double",
+}
+function M.table_spacing(meta)
+  local mode = M.mode(meta)
+  local default = (mode == "jou" or mode == "doc") and "single" or "double"
+  local value = meta and meta["table-spacing"]
+  if value == nil then return default end
+  local key = pandoc.utils.stringify(value):lower():gsub("%s", "")
+  local spacing = table_spacings[key]
+  if not spacing then
+    quarto.log.warning("table-spacing should be single, onehalf or double; got \""
+      .. key .. "\", so tables are " .. default .. " spaced.")
+    return default
+  end
+  return spacing
+end
+
+-- setspace's stretch for each spacing at a 12pt body: 1 is single spacing,
+-- 1.25 setspace's one-and-a-half, 1.667 its double.
+M.table_stretch = { single = "1", onehalf = "1.25", double = "1.667" }
+
+-- Whether an element's attribute says true. Written in markdown it is the
+-- string "true"; set from a chunk option it may arrive as a boolean, or as a
+-- string with quotes or brackets left on it.
+function M.attr_true(el, name)
+  -- Not every block has attributes, and asking one that has none may raise.
+  local ok, attrs = pcall(function() return el.attributes end)
+  if not ok or not attrs then return false end
+  local value = attrs[name]
+  if value == nil then return false end
+  if value == true or tostring(value) == "true" then return true end
+  return pandoc.utils.stringify(value):lower():gsub("[^%a]", "") == "true"
+end
+
+-- A page break in the format being written, or nil for html, which has no
+-- pages. A weak break in typst is dropped when the page is already fresh.
+function M.page_break(weak)
+  if FORMAT == "docx" then
+    return pandoc.RawBlock("openxml", '<w:p><w:r><w:br w:type="page"/></w:r></w:p>')
+  elseif FORMAT == "latex" then
+    return pandoc.RawBlock("latex", "\\clearpage")
+  elseif FORMAT:match("typst") then
+    return pandoc.RawBlock("typst", weak and "#pagebreak(weak: true)" or "#pagebreak()\n\n")
+  end
+  return nil
+end
+
+-- Text made safe to put inside raw openxml, where these characters are
+-- markup. Word refuses to open a file with an unescaped ampersand in it.
+function M.xml_escape(text)
+  return (text:gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"))
+end
+
+-- Inlines as Word runs, for raw openxml: words in bold or italic where the
+-- inlines say so, and in a colour (six hex digits) when one is given.
+-- Anything else is written as the text it stringifies to, which is what a
+-- heading, a caption or a line of a contents carries little more than.
+function M.docx_runs(inlines, bold, italic, colour)
+  local out = {}
+  for _, inline in ipairs(inlines) do
+    if inline.t == "Str" then
+      local properties = {}
+      if bold then properties[#properties + 1] = "<w:b/>" end
+      if italic then properties[#properties + 1] = "<w:i/>" end
+      if colour then
+        properties[#properties + 1] = '<w:color w:val="' .. colour .. '"/>'
+      end
+      local rpr = ""
+      if #properties > 0 then
+        rpr = "<w:rPr>" .. table.concat(properties) .. "</w:rPr>"
+      end
+      out[#out + 1] = "<w:r>" .. rpr .. '<w:t xml:space="preserve">'
+        .. M.xml_escape(inline.text) .. "</w:t></w:r>"
+    elseif inline.t == "Space" or inline.t == "SoftBreak" then
+      out[#out + 1] = '<w:r><w:t xml:space="preserve"> </w:t></w:r>'
+    elseif inline.t == "Strong" then
+      out[#out + 1] = M.docx_runs(inline.content, true, italic, colour)
+    elseif inline.t == "Emph" then
+      out[#out + 1] = M.docx_runs(inline.content, bold, true, colour)
+    elseif inline.content then
+      out[#out + 1] = M.docx_runs(inline.content, bold, italic, colour)
+    else
+      out[#out + 1] = "<w:r>" .. '<w:t xml:space="preserve">'
+        .. M.xml_escape(pandoc.utils.stringify(inline)) .. "</w:t></w:r>"
+    end
+  end
+  return table.concat(out)
+end
+
+-- The name pandoc gives a heading's bookmark in .docx, which is not always the
+-- identifier. Word will not take a bookmark name longer than 40 characters, so
+-- pandoc hashes a longer identifier and writes the sha1 with its first
+-- character replaced by an X; a link has to ask for the same name or it points
+-- at nothing.
+function M.docx_bookmark_name(identifier)
+  if #identifier <= 40 then return identifier end
+  return "X" .. pandoc.utils.sha1(identifier):sub(2)
+end
+
+-- A string without the white space at either end.
+function M.trim(s)
+  return (s:gsub("^%s*(.-)%s*$", "%1"))
+end
+
+-- Inlines in capitals, their markup kept.
+function M.upper(inlines)
+  return pandoc.Inlines(inlines):walk {
+    Str = function(s) return pandoc.Str(pandoc.text.upper(s.text)) end
+  }
 end
 
 return M

@@ -1,6 +1,6 @@
 -- Accepts spelled-out aliases for documentmode and rewrites them to the codes
--- everything downstream expects: the apa7 class option in doc-class.tex, the
--- show rule in typst-show.typ, and the filters that branch on "jou". This runs
+-- everything downstream expects: the show rule in typst-show.typ, and the
+-- filters that branch on "jou", "stu", "thesis" and the rest. This runs
 -- first, before any of them read the field, so the alias is resolved in one
 -- place rather than in each of them.
 --
@@ -26,6 +26,12 @@ local implied = {
 }
 
 function Meta(m)
+  -- A document that names no mode is a manuscript. Said here, first, so that
+  -- every filter and template after this one finds a mode, and typst-show.typ,
+  -- which calls the mode by name, finds one it can call.
+  if not m.documentmode then
+    m.documentmode = "man"
+  end
   if m.documentmode then
     local mode = pandoc.utils.stringify(m.documentmode)
     local alias = aliases[mode]

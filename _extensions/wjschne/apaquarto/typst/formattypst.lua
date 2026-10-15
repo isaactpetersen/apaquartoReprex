@@ -2,6 +2,14 @@ if FORMAT ~='typst' then
   return
 end
 
+-- The modules this filter loads, utilsapa.lua and floatrecord.lua, are in the
+-- folder above this one, and require looks only in this filter's own folder.
+-- utilsapa was found all the same, because an earlier filter had already
+-- loaded it; floatrecord is loaded by no filter before this one in typst. So
+-- the folder above is put on the search path, and neither is left to depend
+-- on what ran first.
+package.path = quarto.utils.resolve_path("../?.lua") .. ";" .. package.path
+
 -- mainfont and monofont can be one font or a comma-separated stack of fonts
 -- (the way the html format sets them). Typst takes a list of font families
 -- and uses the first one that can render each glyph, so a stack becomes a
@@ -39,9 +47,7 @@ local function default_mainfont()
     "Times New Roman, Liberation Serif, Nimbus Roman"
 end
 
-local function trim(s)
-  return (s:gsub("^%s*(.-)%s*$", "%1"))
-end
+local trim = require("utilsapa").trim
 
 local function fontlist(value)
   local fonts = pandoc.List({})
@@ -62,6 +68,8 @@ local function fontlist(value)
 end
 
 local utilsapa = require("utilsapa")
+local floatrecord = require("floatrecord")
+local typstfrontmatter = require("typstfrontmatter")
 
 -- The body first-line indent differs by mode, and the template names each one.
 -- A block that suspends the indent (references, a note) has to put back the
@@ -123,10 +131,8 @@ local function asked_for_number_font(meta)
 end
 
 local function line_numbering(meta)
-  if meta["numbered-lines"] == nil then return nil end
-  if pandoc.utils.stringify(meta["numbered-lines"]) == "false" then return nil end
-  local mode = meta.documentmode and
-    pandoc.utils.stringify(meta.documentmode) or "man"
+  if not utilsapa.flag(meta, "numbered-lines") then return nil end
+  local mode = utilsapa.mode(meta)
   local clearance = (mode == "jou") and "5pt" or "10pt"
   local font = asked_for_number_font(meta) or "linenumberfont"
   return pandoc.RawBlock("typst",
@@ -135,7 +141,7 @@ local function line_numbering(meta)
 end
 
 local function set_body_indent(meta)
-  local mode = meta.documentmode and pandoc.utils.stringify(meta.documentmode) or "man"
+  local mode = utilsapa.mode(meta)
   if mode == "jou" then
     bodyindent = "apaparindent(joufirstlineindent, all: true)"
     hangingindent = "joufirstlineindent"
@@ -147,10 +153,68 @@ local function set_body_indent(meta)
   end
 end
 
--- Word for "note", and the notes apatablenote.lua recovered from markdown
+-- Word for "note", and the notes markdowntable.lua recovered from markdown
 -- table captions, keyed by table identifier
 local noteword = "Note"
 local tablenotes = {}
+
+-- table-spacing as the word for it, read in the Meta pass below
+local tablespacing = "double"
+
+-- typst's word for a cell's horizontal alignment, its own or its column's.
+local typst_align = {
+  AlignLeft = "left", AlignRight = "right", AlignCenter = "center",
+}
+
+-- The cells of a table's head set at the foot of their row, as the .pdf
+-- sets them and as APA's tables do: a heading that wraps to a second line
+-- has its neighbours level with that line, on the rule, rather than with its
+-- first. The body's cells stay at the top of theirs. pandoc gives the table
+-- an align of its own, which a second could not join, so each head cell's
+-- content is aligned instead, keeping its column's horizontal alignment.
+local function bottom_align_head(tbl)
+  for _, row in ipairs(tbl.head.rows) do
+    local column = 1
+    for _, cell in ipairs(row.cells) do
+      local alignment = cell.alignment
+      if alignment == "AlignDefault" and tbl.colspecs[column] then
+        alignment = tbl.colspecs[column][1]
+      end
+      local horizontal = typst_align[alignment] or "start"
+      local contents = pandoc.Blocks({
+        pandoc.RawBlock("typst", "#align(bottom + " .. horizontal .. ")[")
+      })
+      contents:extend(cell.contents)
+      contents:insert(pandoc.RawBlock("typst", "]"))
+      cell.contents = contents
+      column = column + cell.col_span
+    end
+  end
+end
+
+-- A table pandoc writes, given its padding and rules (apatablecells in the
+-- template) by its count of rows and of head rows: typst tells a cell only
+-- its own column and row, and the rules go under the head, wherever that
+-- ends, and under the last row. A table that asks for its own inset or
+-- stroke keeps it.
+local function rule_table(tbl)
+  bottom_align_head(tbl)
+  local head = #tbl.head.rows
+  local rows = head + #tbl.foot.rows
+  for _, body in ipairs(tbl.bodies) do
+    rows = rows + #body.head + #body.body
+  end
+  local cells = string.format('apatablecells("%s", %d, %d)', tablespacing,
+    rows, head)
+  local attributes = tbl.attr.attributes
+  if attributes["typst:inset"] == nil then
+    attributes["typst:inset"] = cells .. ".inset"
+  end
+  if attributes["typst:stroke"] == nil then
+    attributes["typst:stroke"] = cells .. ".stroke"
+  end
+  return tbl
+end
 
 -- Table floats whose note a surrounding div already carries. apanote.lua
 -- makes the note for those divs later, so making it here as well would print
@@ -209,72 +273,9 @@ end
 local panelword = "Panel"
 local letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
--- The number of columns a float of panels is asking for, or nil if it is not
--- laid out in panels at all.
-local function panel_columns(float)
-  local a = float.attributes
-  if not a then return nil end
-  local ncol = tonumber(a["layout-ncol"])
-  if not ncol then
-    local nrow = tonumber(a["layout-nrow"])
-    if nrow and nrow > 0 then
-      ncol = math.ceil(#float.content / nrow)
-    end
-  end
-  if not ncol or ncol < 1 then return nil end
-  return ncol
-end
-
--- A float's caption, which quarto hands over as a single Block for the usual
--- one line caption and as Blocks or Inlines elsewhere.
-local function caption_inlines(float)
-  local caption = float.caption_long
-  if not caption then return nil end
-  local kind = pandoc.utils.type(caption)
-  local inlines
-  if kind == "Inlines" then
-    inlines = caption
-  elseif kind == "Block" then
-    inlines = caption.content
-  elseif kind == "Blocks" then
-    local ok, converted = pcall(pandoc.utils.blocks_to_inlines, caption)
-    inlines = ok and converted or nil
-  end
-  if not inlines or #inlines == 0 then return nil end
-  return inlines
-end
-
--- The float a div is standing in for. A float is a custom node, and a walk of
--- the document sees only the div carrying its id.
-local function float_behind(block)
-  if block.t ~= "Div" then return nil end
-  local id = block.attributes and block.attributes["__quarto_custom_id"]
-  if not id then return nil end
-  local ok, float = pcall(function()
-    return quarto._quarto.ast.custom_node_data[tostring(id)]
-  end)
-  if not ok then return nil end
-  return float
-end
-
--- The first pandoc Figure inside a block, which is how a panel written as a
--- plain code chunk arrives: a cell div wrapping an output div wrapping the
--- figure. A panel that was given a label of its own is a float instead, and
--- float_behind finds that one.
-local function figure_inside(block)
-  -- A panel written as a markdown image is the figure, rather than holding
-  -- one, and a walk of it visits its children and never itself. Without this
-  -- such a panel kept the caption typst or latex writes under a figure of its
-  -- own instead of taking the caption up beside its panel label.
-  if block.t == "Figure" then return block end
-  local found = nil
-  block:walk {
-    Figure = function(fig)
-      if not found then found = fig end
-    end
-  }
-  return found
-end
+-- A float of panels is read by floatrecord, which counts the columns from
+-- layout-ncol and layout-nrow only: quarto's typst writer drops a figure
+-- handed an explicit layout matrix, so none is read here.
 
 -- One panel of the grid: its label, then the picture.
 --
@@ -283,33 +284,16 @@ end
 -- suppresses while it is building the layout, and no longer does once the
 -- layout is being built here. The panel is labelled the APA way instead, with
 -- its own caption following the label on the same line.
-local function panel_cell(block, index)
+local function panel_cell(panel, index)
   local letter = letters:sub(index, index)
   if letter == "" then letter = tostring(index) end
   local label = pandoc.Inlines({
     pandoc.Strong(pandoc.Str(panelword .. " " .. letter))
   })
 
-  local caption, content, identifier, note
-  local float = float_behind(block)
-  if float then
-    caption = caption_inlines(float)
-    content = float.content
-    identifier = float.identifier
-    note = float.attributes and float.attributes["apa-note"]
-  else
-    local figure = figure_inside(block)
-    if figure then
-      caption = figure.caption and figure.caption.long
-      if caption then
-        local ok, inlines = pcall(pandoc.utils.blocks_to_inlines, caption)
-        caption = ok and inlines or nil
-        if caption and #caption == 0 then caption = nil end
-      end
-      content = figure.content
-      identifier = figure.identifier
-    end
-  end
+  local block = panel.block
+  local caption, content, identifier, note =
+    panel.caption, panel.content, panel.identifier, panel.note
 
   if caption then
     label:insert(pandoc.Str("."))
@@ -332,24 +316,11 @@ local function panel_cell(block, index)
   end
 
   -- A note of the panel's own, which sits centred under the panel it belongs
-  -- to rather than flush left like the note of the whole figure. A panel given
-  -- a label of its own carries the note on the float behind it, read above; a
-  -- panel written as a plain code chunk carries it on the block itself; and a
-  -- panel written as a markdown image carries it on the image, which is the
-  -- only place it is ever written.
-  if note == nil or note == "" then
-    note = block.attributes and block.attributes["apa-note"]
-  end
-  if note == nil or note == "" then
-    blocks:walk {
-      Image = function(img)
-        if (note == nil or note == "") and img.attributes
-            and img.attributes["apa-note"] then
-          note = img.attributes["apa-note"]
-        end
-      end
-    }
-  end
+  -- to rather than flush left like the note of the whole figure. floatrecord
+  -- has found it wherever it was written: on the float behind a panel given a
+  -- label of its own, on the block of a plain code chunk, or on the image of a
+  -- panel written as a markdown image.
+  --
   -- Taken off the image now that it has been read. apanote.lua lifts the note
   -- of an image onto the div around it, which for a panel is the scaffold
   -- quarto wraps the whole grid in, and the note would then be written a
@@ -363,37 +334,48 @@ local function panel_cell(block, index)
     end
   }
   if note and note ~= "" then
-    local prefix = pandoc.Para({
-      pandoc.Emph(pandoc.Str(noteword)), pandoc.Str("."), pandoc.Space() })
     blocks:insert(pandoc.RawBlock("typst", "#align(center)["))
-    blocks:insert(utilsapa.make_note(note, prefix))
+    blocks:insert(floatrecord.note_blocks(note, noteword))
     blocks:insert(pandoc.RawBlock("typst", "]"))
   end
 
   return blocks
 end
 
+-- The body of a float, the picture, table or grid of panels, in a block that
+-- cannot break. The template lets the float itself break, so that a note too
+-- long for the rest of the page runs on to the next one rather than off the
+-- foot of it (#171); what may not be parted is held together here instead.
+-- Followed by a note, the block stays on the page with the note's first line.
+local function keep_body(blocks, before_note)
+  local out = pandoc.Blocks({
+    pandoc.RawBlock("typst", "#block(breakable: false"
+      .. (before_note and ", ..apasticky" or "") .. ")[")
+  })
+  out:extend(floatrecord.as_blocks(blocks))
+  out:insert(pandoc.RawBlock("typst", "]"))
+  return out
+end
+
 -- The whole figure: the grid of panels, then the note under it at full width.
 -- The panels are already plain blocks by the time this runs, each one having
 -- been through panel_cell below.
-local function laid_out_float(float, ncol)
-  local content = pandoc.Blocks({
-    pandoc.RawBlock("typst", "#grid(columns: " .. ncol .. ", gutter: 2em,")
+local function laid_out_float(record)
+  local float = record.float
+  local grid = pandoc.Blocks({
+    pandoc.RawBlock("typst", "#grid(columns: " .. record.columns .. ", gutter: 2em,")
   })
-  local index = 0
-  for _, panel in ipairs(float.content) do
-    index = index + 1
-    content:insert(pandoc.RawBlock("typst", "["))
-    content:extend(panel_cell(panel, index))
-    content:insert(pandoc.RawBlock("typst", "],"))
+  for index, panel in ipairs(record.panels) do
+    grid:insert(pandoc.RawBlock("typst", "["))
+    grid:extend(panel_cell(panel, index))
+    grid:insert(pandoc.RawBlock("typst", "],"))
   end
-  content:insert(pandoc.RawBlock("typst", ")"))
+  grid:insert(pandoc.RawBlock("typst", ")"))
+  local content = keep_body(grid, record.note ~= nil)
 
-  if float.attributes["apa-note"] then
-    local prefix = pandoc.Para({
-      pandoc.Emph(pandoc.Str(noteword)), pandoc.Str("."), pandoc.Space() })
+  if record.note then
     content:insert(pandoc.RawBlock("typst", "#align(left)["))
-    content:insert(utilsapa.make_note(float.attributes["apa-note"], prefix))
+    content:insert(floatrecord.note_blocks(record.note, noteword))
     content:insert(pandoc.RawBlock("typst", "]"))
   end
 
@@ -405,23 +387,80 @@ local function laid_out_float(float, ncol)
   return float
 end
 
-local function floatnote(float)
-  if divnotes[float.identifier] then
+-- The note is written inside the float however it was given, so that the
+-- figure's show rule, an unbreakable block, holds the two together. A note
+-- written after the float, as apanote.lua writes one, could be parted from it
+-- by a page break: the figure ended one page and its note began the next
+-- (tests/layout-chunk-note.qmd). A note on an image is taken off the image
+-- once it is written here, so that apanote.lua finds nothing to lift; the
+-- note of a code chunk is brought down from the cell by mark_cell_notes below.
+local function floatnote(record)
+  if divnotes[record.identifier] then
     return nil
   end
-  local note = tablenotes[float.identifier] or float.attributes["apa-note"]
-  if not note then
+  if not record.note then
     return nil
   end
-  if note_on_image(float) then
+  if note_on_image(record.float) then
+    record.float.content = record.float.content:walk {
+      Image = function(img)
+        if img.attributes and img.attributes["apa-note"] then
+          img.attributes["apa-note"] = nil
+          return img
+        end
+      end
+    }
+    -- A float holding one image has that one block for its content.
+    record.content = floatrecord.as_blocks(record.float.content)
+  end
+  return floatrecord.note_blocks(record.note, noteword)
+end
+
+-- The floats a cell holds, not counting the panels inside one of them.
+local function cell_floats(blocks)
+  local found = {}
+  local function look(list)
+    for _, block in ipairs(list) do
+      local float = floatrecord.float_behind(block)
+      if float then
+        found[#found + 1] = float
+      elseif block.t == "Div" then
+        look(block.content)
+      end
+    end
+  end
+  look(blocks)
+  return found
+end
+
+-- A code chunk's apa-note is set on the cell quarto wraps the chunk's output
+-- in, not on the float inside it, so apanote.lua wrote it after the cell,
+-- outside the figure. A cell holding one float hands its note down to that
+-- float and is marked as written, so that the note is written inside the
+-- float, once. A cell drawing several figures keeps its one note under them
+-- all, written by apanote.lua as before, and none of its floats writes it.
+local function mark_cell_notes(div)
+  local note = div.attributes["apa-note"]
+  if not note or div.attributes[utilsapa.note_written] == utilsapa.note_mark() then
     return nil
   end
-  local prefix = pandoc.Para({
-    pandoc.Emph(pandoc.Str(noteword)),
-    pandoc.Str("."),
-    pandoc.Space()
-  })
-  return utilsapa.make_note(note, prefix)
+  local floats = cell_floats(div.content)
+  -- A float carrying a note of its own that says something else keeps both,
+  -- the way they were written before (tests/note-sources.qmd).
+  local own = #floats == 1 and floats[1].attributes
+    and floats[1].attributes["apa-note"]
+  if #floats == 1 and (not own or own == note) then
+    local float = floats[1]
+    float.attributes = float.attributes or {}
+    float.attributes["apa-note"] = note
+    div.attributes[utilsapa.note_written] = utilsapa.note_mark()
+    return div
+  end
+  for _, float in ipairs(floats) do
+    if float.identifier then
+      divnotes[float.identifier] = true
+    end
+  end
 end
 
 return {
@@ -437,40 +476,30 @@ return {
       if not meta.mainfont then
         meta.mainfont = fontlist(pandoc.MetaString(default_mainfont()))
       end
-      if meta.language and meta.language["figure-table-note"] then
-        noteword = pandoc.utils.stringify(meta.language["figure-table-note"])
-      end
-      if meta.language and meta.language["figure-panel"] then
-        panelword = pandoc.utils.stringify(meta.language["figure-panel"])
-      end
+      noteword = utilsapa.lang(meta, "figure-table-note", noteword)
+      panelword = utilsapa.lang(meta, "figure-panel", panelword)
       set_body_indent(meta)
+      -- table-spacing, read once and handed to the template as the word for
+      -- it: single, onehalf or double.
+      tablespacing = utilsapa.table_spacing(meta)
+      meta["apa-table-spacing"] = tablespacing
       if meta["apa-table-notes"] then
-        for id, note in pairs(meta["apa-table-notes"]) do
-          tablenotes[id] = pandoc.utils.stringify(note)
-        end
+        tablenotes = utilsapa.table_notes(meta)
       end
       return meta
     end
   },
+  -- The front matter, laid out for the document's mode, before the passes
+  -- below read it as the blocks typst is given.
+  { Pandoc = typstfrontmatter.lay_out },
+  { Table = rule_table },
   {
-    -- Find the tables whose note is already on a surrounding div. A float is
-    -- a custom node, which a walk sees only as the div standing in for it, so
+    -- A note on a div around a float: brought down into the float when the div
+    -- holds just the one, and otherwise left to apanote.lua, with the floats
+    -- inside standing down so that it is not written twice. A float is a
+    -- custom node, which a walk sees only as the div standing in for it, so
     -- the float is looked up by the id that div carries.
-    Div = function(div)
-      if div.attributes["apa-note"] then
-        div.content:walk {
-          Div = function(d)
-            local id = d.attributes and d.attributes["__quarto_custom_id"]
-            if id then
-              local float = quarto._quarto.ast.custom_node_data[tostring(id)]
-              if float and float.identifier then
-                divnotes[float.identifier] = true
-              end
-            end
-          end
-        }
-      end
-    end
+    Div = mark_cell_notes
   },
   {
     -- Put the note below the float's content. It goes inside the float, as it
@@ -483,33 +512,18 @@ return {
       -- here, that note would be written outside the grid.
       if float.parent_id then return nil end
 
-      -- floatwithsubfigure.lua writes the note of a float laid out in panels
-      -- for the other formats, and marks the float when it has. Writing it
-      -- again here would print it twice.
-      if float.attributes and float.attributes["apa-note-written"] then
-        return nil
+      local record = floatrecord.read(float, { tablenotes = tablenotes })
+      if record.columns then
+        return laid_out_float(record)
       end
 
-      local ncol = panel_columns(float)
-      if ncol then
-        return laid_out_float(float, ncol)
+      local note = floatnote(record)
+      local content = keep_body(record.content, note ~= nil)
+      if note then
+        content:insert(pandoc.RawBlock("typst", "#align(left)["))
+        content:insert(note)
+        content:insert(pandoc.RawBlock("typst", "]"))
       end
-
-      local note = floatnote(float)
-      if not note then return nil end
-      -- A float holding one image has a single block for its content; one
-      -- holding a layout of panels has a list of them. The list has to be
-      -- opened out rather than put inside the new list, since a list is not
-      -- itself a block and pandoc will not take one where a block belongs.
-      local content = pandoc.Blocks({})
-      if pandoc.utils.type(float.content) == "Blocks" then
-        content:extend(float.content)
-      else
-        content:insert(float.content)
-      end
-      content:insert(pandoc.RawBlock("typst", "#align(left)["))
-      content:insert(note)
-      content:insert(pandoc.RawBlock("typst", "]"))
       float.content = content
       return float
     end
@@ -549,6 +563,21 @@ return {
       if div.classes:includes("NoIndent") then
         return {pandoc.RawBlock('typst', "#set par(first-line-indent: 0mm)"), div, pandoc.RawBlock('typst', "#set par(first-line-indent: " .. bodyindent .. ")")}
       end
+
+      -- The dash attribution under a block quotation (apaquote.lua): against
+      -- the quotation's right edge, with no first-line indent. Both are set
+      -- inside a content block of their own, so nothing has to be put back
+      -- after, and the div's paragraphs go in it bare rather than in the
+      -- block pandoc writes a div as: a block (and an align is one) is set
+      -- off by the quotation's space around blocks, which put more air above
+      -- the attribution than between the lines of the quotation.
+      if div.classes:includes("quote-attribution") then
+        local out = pandoc.List({ pandoc.RawBlock("typst",
+          "#[#set align(right)\n#set par(first-line-indent: 0pt)") })
+        out:extend(div.content)
+        out:insert(pandoc.RawBlock("typst", "]"))
+        return out
+      end
     end
   } ,
   {
@@ -563,14 +592,9 @@ return {
       -- This function inserts a blank  paragraph and then negative vertical space
       -- before any first paragraph. Hoping that typst will fix this and that this function
       -- becomes unnecessary.
-      local appendixword = "Appendix"
-      if doc.meta.language and doc.meta.language["crossref-apx-prefix"] then
-        appendixword = pandoc.utils.stringify(doc.meta.language["crossref-apx-prefix"])
-      end
       -- The first-paragraph indent fix is for the manuscript body; in journal
       -- mode it would land inside the masthead and author note, so skip it.
-      local journalmode = doc.meta.documentmode and
-        pandoc.utils.stringify(doc.meta.documentmode) == "jou"
+      local journalmode = utilsapa.mode(doc.meta) == "jou"
 
       for i = #doc.blocks, 1, -1 do
         if i > 1 and not journalmode and doc.blocks[i].t == "Para" and doc.blocks[i-1].t ~= "Para" then
@@ -588,11 +612,17 @@ return {
               -- that asked for none is unaffected.
               "#[#set par.line(numbering: none)\n" ..
               "#par()[#text(size:0.5em)[#h(0.0em)]]]\n" ..
-              "#v(apafirstparshift)"))
+              -- Taken back by the paragraph spacing the spacer brought with
+              -- it, whatever the mode sets that to: a fixed 18pt took the
+              -- first paragraph after a heading too close in any mode whose
+              -- spacing was not 18pt.
+              "#context v(-par.spacing)"))
           end
         end       
-        -- Count appendices
-        if doc.blocks[i].t == "Header" and doc.blocks[i].level == 1 and doc.blocks[i].content[1].text == appendixword then
+        -- Count appendices, by the heading crossrefprefix.lua marks as
+        -- opening one
+        if doc.blocks[i].t == "Header" and doc.blocks[i].level == 1
+            and doc.blocks[i].classes:includes("apa-appendix") then
           doc.blocks:insert(i+1, pandoc.RawBlock("typst", "#counter(figure.where(kind: \"quarto-float-fig\")).update(0)\n#counter(figure.where(kind: \"quarto-float-tbl\")).update(0)\n#appendixcounter.step()"))
         end
       end

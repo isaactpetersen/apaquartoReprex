@@ -1,4 +1,5 @@
 -- Get names for Figure and Table in language specified in lang field
+local utilsapa = require("utilsapa")
 local figureword = "Figure"
 local tableword = "Table"
 local labelnum = ""
@@ -21,15 +22,8 @@ end
 
 local function gettablefig(m)
   -- Get names for Figure and Table specified in language field
-  if m.language then
-    if m.language["crossref-fig-title"] then
-      figureword = pandoc.utils.stringify(m.language["crossref-fig-title"])
-    end
-
-    if m.language["crossref-tbl-title"] then
-      tableword = pandoc.utils.stringify(m.language["crossref-tbl-title"])
-    end
-  end
+  figureword = utilsapa.lang(m, "crossref-fig-title", figureword)
+  tableword = utilsapa.lang(m, "crossref-tbl-title", tableword)
   floatwords = { [figureword] = true, [tableword] = true }
 
   if m.crossref and m.crossref.custom then
@@ -44,6 +38,14 @@ local function gettablefig(m)
   end
 end
 
+
+-- The Word style of the caption in hand. A table's is TableCaption, which the
+-- reference document gives no space after: Caption's six points stood a
+-- table's top rule 20.5pt under the foot of its caption, where the .pdf,
+-- typst and .html stand it 12 to 15 (tests/layout-float-space.qmd). A
+-- figure's caption keeps Caption. The class stays Caption either way, which
+-- is what the other filters and apa.css look for.
+local captionstyle = "Caption"
 
 -- Format caption
 local caption_formatter = function(p)
@@ -81,7 +83,7 @@ local caption_formatter = function(p)
         -- enclose figure/table caption in a div with custom style
         local figurecaptiondiv = pandoc.Div(figurecaption)
         figurecaptiondiv.classes:insert("Caption")
-        figurecaptiondiv.attributes["custom-style"] = "Caption"
+        figurecaptiondiv.attributes["custom-style"] = captionstyle
         return { figuretitlediv, figurecaptiondiv }
       end
     end
@@ -108,12 +110,18 @@ local divcaption = function(div)
       if div.attributes.tblnum then
         labelnum = div.attributes.prefix .. string.match(div.attributes.tblnum, "%d+")
       end
+      -- A float of the document's own kind, such as an Illustration
+      if div.attributes.floatnum then
+        labelnum = div.attributes.prefix .. string.match(div.attributes.floatnum, "%d+")
+      end
     end
 
     if FORMAT == "html" then
       div.content = div.content:walk { Plain = caption_formatter }
     end
     if FORMAT == "docx" then
+      -- By its name, which is how pandoc finds a style: Table Caption.
+      captionstyle = div.identifier:find("^tbl%-") and "Table Caption" or "Caption"
       -- Remove raw openxml from div
       div.content = div.content:walk { RawInline = function(ri) return {} end }
       div.content = div.content:walk { Para = caption_formatter }

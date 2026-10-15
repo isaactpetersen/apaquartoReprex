@@ -303,10 +303,16 @@
 \renewcommand*\l@subsubsection{\@dottedtocline{3}{3em}{0em}}
 \makeatother
 
+% The headings of the three lists, which formatlatex.lua sets from the
+% document's language.
+\newcommand{\apacontentsname}{Table of Contents}
+\newcommand{\apalistfigurename}{List of Figures}
+\newcommand{\apalisttablename}{List of Tables}
+
 \newcommand{\apatableofcontents}{%
   \begingroup
   \hypersetup{linkcolor=\apatoccolor,citecolor=\apatoccolor,urlcolor=\apatoccolor}%
-  \renewcommand{\contentsname}{Table of Contents}%
+  \renewcommand{\contentsname}{\apacontentsname}%
   \setcounter{tocdepth}{\apatocdepth}%
   \tableofcontents
   \endgroup}
@@ -320,13 +326,13 @@
 \newcommand{\apalistoffigures}{%
   \begingroup
   \hypersetup{linkcolor=\apatoccolor,citecolor=\apatoccolor,urlcolor=\apatoccolor}%
-  \renewcommand{\listfigurename}{List of Figures}%
+  \renewcommand{\listfigurename}{\apalistfigurename}%
   \listoffigures
   \endgroup}
 \newcommand{\apalistoftables}{%
   \begingroup
   \hypersetup{linkcolor=\apatoccolor,citecolor=\apatoccolor,urlcolor=\apatoccolor}%
-  \renewcommand{\listtablename}{List of Tables}%
+  \renewcommand{\listtablename}{\apalisttablename}%
   \listoftables
   \endgroup}
 
@@ -490,6 +496,12 @@
   }{%
     \the\apa@lt@foot
     \end{tabular}%
+    % The space after \end{longtable} ignored, as after a list or a
+    % quotation. It sat on the tabular's line, and when the table ran the
+    % full width of the page, as one with a column of text does, it went on
+    % to a second, empty line, which set the note a point lower than under a
+    % narrower table (tests/layout-table-rules.qmd).
+    \global\@ignoretrue
   }}
 \makeatother
 
@@ -501,19 +513,25 @@
 % The five APA levels. One to three are their own paragraphs; four and five run
 % into the text that follows them, which is why they are set as runin.
 % Numbering is off: APA headings are never numbered.
+%
+% No space is added above or below a heading: APA sets one on a line of its
+% own in the line spacing of the text around it, as typst does. The space
+% above was \baselineskip, which titlesec adds on top of the line spacing,
+% so every heading stood a blank line below the text before it, 49pt from it
+% in a manuscript where the lines are 24pt apart (tests/layout-manuscript.qmd).
 \setcounter{secnumdepth}{-1}
 
 \titleformat{\section}[block]
   {\normalfont\bfseries\centering}{}{0pt}{}
-\titlespacing{\section}{0pt}{\baselineskip}{0pt}
+\titlespacing{\section}{0pt}{0pt}{0pt}
 
 \titleformat{\subsection}[block]
   {\normalfont\bfseries\raggedright}{}{0pt}{}
-\titlespacing{\subsection}{0pt}{\baselineskip}{0pt}
+\titlespacing{\subsection}{0pt}{0pt}{0pt}
 
 \titleformat{\subsubsection}[block]
   {\normalfont\bfseries\itshape\raggedright}{}{0pt}{}
-\titlespacing{\subsubsection}{0pt}{\baselineskip}{0pt}
+\titlespacing{\subsubsection}{0pt}{0pt}{0pt}
 
 % No [.] suffix: apaheader.lua has already put a full stop at the end of a
 % level four or five heading, and only when the heading did not end in one
@@ -521,11 +539,40 @@
 % heading ending in a question mark into "...?.".
 \titleformat{\paragraph}[runin]
   {\normalfont\bfseries}{}{0pt}{}
-\titlespacing{\paragraph}{\parindent}{\baselineskip}{0.5em}
+\titlespacing{\paragraph}{\parindent}{0pt}{0.5em}
 
 \titleformat{\subparagraph}[runin]
   {\normalfont\bfseries\itshape}{}{0pt}{}
-\titlespacing{\subparagraph}{\parindent}{\baselineskip}{0.5em}
+\titlespacing{\subparagraph}{\parindent}{0pt}{0.5em}
+
+% Journal mode sets levels one to three the way the Journal of Educational
+% Psychology does (measured from its pages; JEP.pdf at the repository root):
+% a point larger than the body and on a line a point deeper, so 11pt on 13pt
+% over the 10pt on 12pt body, with 26pt from the baseline above to the
+% heading's and 18pt from the heading's to the first line under it.
+% titlespacing adds to the heading's own 13pt line above and the body's 12pt
+% line below, so those are 13pt and 6pt here. typst-template.typ sets the
+% same in its jou layout.
+% Both values are expanded before \fontsize sees them: \fontsize keeps its own
+% workings in \@tempdimb, and handed \the\@tempdimb it read back the new size
+% as the line, setting the heading solid.
+\makeatletter
+\newcommand{\apajouheadingfont}{%
+  \@tempdima=\f@size pt\advance\@tempdima by 1pt
+  \@tempdimb=\f@baselineskip\advance\@tempdimb by 1pt
+  \edef\apa@headingfont{\noexpand\fontsize{\the\@tempdima}{\the\@tempdimb}}%
+  \apa@headingfont\selectfont}
+\makeatother
+\newcommand{\apajouheadings}{%
+  \titleformat{\section}[block]
+    {\normalfont\apajouheadingfont\bfseries\centering}{}{0pt}{}%
+  \titlespacing{\section}{0pt}{13pt}{6pt}%
+  \titleformat{\subsection}[block]
+    {\normalfont\apajouheadingfont\bfseries\raggedright}{}{0pt}{}%
+  \titlespacing{\subsection}{0pt}{13pt}{6pt}%
+  \titleformat{\subsubsection}[block]
+    {\normalfont\apajouheadingfont\bfseries\itshape\raggedright}{}{0pt}{}%
+  \titlespacing{\subsubsection}{0pt}{13pt}{6pt}}
 
 % --- Title page -------------------------------------------------------------
 % The title itself, bold and centred, set a third of the way down the page in
@@ -553,10 +600,62 @@
 % APA puts the number above the title, the title above the figure, and the note
 % below it, all flush left. The blocks arrive already in that order, so these
 % only set them.
+%
+% A table outside journal mode is set in the text flow, where no float keeps
+% its number and title with it, so neither may be parted from what follows,
+% nor a title of two lines split between pages.
 \newcommand{\apafloattitle}[1]{%
-  {\par\noindent\bfseries #1\par}}
+  {\par\noindent\bfseries #1\par\nopagebreak}}
 \newcommand{\apafloatcaption}[1]{%
-  {\par\noindent\itshape #1\par}}
+  {\par\noindent\itshape\interlinepenalty10000 #1\par\nopagebreak}}
+
+% \nopagebreak cannot keep such a table with its title, because longtable
+% breaks the page itself: before it starts it asks whether its head and first
+% row fit on what is left of the page, and if not it ends the page there,
+% leaving the title and caption alone at its foot. So floatlatex.lua sets the
+% title and caption (with the label and the list-of-tables line, whose anchors
+% belong with them) in a box between \apatablekeep and \apatablekeepend, and
+% the page is ended ahead of them unless there is room for them and three lines
+% more, the space a table's head and first row take.
+%
+% The room is measured rather than guessed in lines. Fourteen lines, a guess
+% that would allow for most tables whole, is half a double-spaced page, and in
+% tests/layout-table-keep.qmd it sent most tables to the next page.
+%
+% The box begins from the depth of the line above it, so that the title is set
+% the same distance under that line as it would have been without the box, and
+% the line after the box is spaced from the caption's last line the same way.
+%
+% A figure set in the text flow, as a manuscript's is, is kept together the
+% same way: its title, caption and picture are boxed and measured, and the
+% page is ended ahead of them unless there is room for them and the first two
+% lines of the note, which follows the picture with no break allowed between.
+% The rest of the note may run on to the next page. In an [H] float the note
+% could not: a figure and note taller than the page had the end of the note
+% set past the foot of the page and cut off (wjschne/apaquarto#171,
+% tests/layout-figure-note-break.qmd).
+%
+% \apakeepend takes the room to ask for beyond the box: three lines for a
+% table, two for a figure with a note, none for a figure without one.
+\newsavebox{\apatablekeepbox}
+\newlength{\apatablekeepdepth}
+\newcommand{\apatablekeep}{%
+  \par\setlength{\apatablekeepdepth}{\prevdepth}%
+  \setbox\apatablekeepbox\vbox\bgroup\prevdepth\apatablekeepdepth}
+\newcommand{\apakeepend}[1]{%
+  \par\global\apatablekeepdepth\prevdepth\egroup
+  % A penalty no page may break at, which hands what is waiting to the page
+  % so that \pagetotal counts it.
+  \penalty10000
+  \ifdim\dimexpr\ht\apatablekeepbox+\dp\apatablekeepbox+#1\relax
+      >\dimexpr\pagegoal-\pagetotal\relax
+    \vfil\penalty-10000
+  \fi
+  \unvbox\apatablekeepbox
+  \prevdepth\apatablekeepdepth}
+\newcommand{\apatablekeepend}{\apakeepend{3\baselineskip}}
+% A figure's: the note's first two lines, held to the picture.
+\newcommand{\apafigurekeepend}{\apakeepend{2\baselineskip}\nopagebreak}
 
 % The blank line APA leaves between a figure's title and the figure itself.
 %
@@ -567,7 +666,14 @@
 %
 % Figures only. A table follows its title immediately, and apa7 in fact leaves
 % a little less room there than this format already does.
-\newcommand{\apafigureskip}{\vspace{1.2em}}
+%
+% Measured from the caption's baseline: TeX puts the picture under the depth
+% of the line above it, so a caption whose last line had a p or a g in it
+% stood 2pt further off its picture than one that had none. 20pt from the
+% baseline to the picture, as in typst (tests/layout-figure-space.qmd).
+\newcommand{\apafigureskip}{%
+  \par\ifdim\prevdepth>0pt\vskip-\prevdepth\prevdepth=0pt\fi
+  \vspace{1.2em}}
 \newenvironment{apafloatnote}
   {\par\setlength{\parindent}{0pt}\noindent}
   {\par}
@@ -582,6 +688,15 @@
 %
 % The gap is written by floatlatex.lua, which knows a table from a figure. A
 % figure's note follows the picture, which needs no rule cleared.
+% The line spacing of a table's rows, double by default, the body's, which APA
+% allows beside one-and-a-half and single. table-spacing, or a journal or doc
+% mode, asks for one of the others, which formatlatex.lua writes here as
+% setspace's stretch for it: 1 or 1.25. floatlatex.lua sets a table pandoc writes in a group that takes this
+% spacing, and the title, caption and note around it keep the body's. A table
+% a package writes in latex of its own keeps its own spacing.
+\newcommand{\apatablestretch}{1.667}
+\newcommand{\apatablespacing}{\setstretch{\apatablestretch}\selectfont}
+
 \newlength{\apatablenotegap}
 \setlength{\apatablenotegap}{0.5em}
 \newcommand{\apatablenoteskip}{\par\vspace{\apatablenotegap}}
@@ -645,13 +760,54 @@
   \setstretch{1}\selectfont
   \addtolength{\apathesisentrysep}{-\baselineskip}}
 
-% A block quotation is indented half an inch from both margins, where a LaTeX
-% quote takes the 2.5em of \leftmargini, and is single spaced.
+% Block quotations. Every mode indents one on the left only and runs it to
+% the margin on the right, as the .docx, the .html and typst do. LaTeX's own
+% quote takes the 2.5em of \leftmargini on both sides. \parsep is the space a
+% list puts between its paragraphs, a few points more than the line spacing,
+% which set the paragraphs of a quotation, and the attribution under it,
+% further apart than the lines of the text around it.
+%
+% A manuscript, a student paper and a document indent half an inch.
+\newcommand{\apaquote}{%
+  \renewenvironment{quote}
+    {\list{}{\leftmargin=0.5in\rightmargin=0pt\parsep=0pt}\item\relax}
+    {\endlist}}
+
+% A journal indents 16pt (measured from quote.pdf, a Group Dynamics article),
+% which is how the APA journals set one. typst-template.typ's jou layout does
+% the same.
+\newcommand{\apajouquote}{%
+  \renewenvironment{quote}
+    {\list{}{\leftmargin=16pt\rightmargin=0pt\parsep=0pt}\item\relax}
+    {\endlist}}
+
+% The dash attribution a block quotation can end with (apaquote.lua): set
+% against the right edge of the quotation, with no first-line indent. The
+% indent is taken off with \parindent rather than \noindent: pandoc writes a
+% blank line after \begin, and a paragraph \noindent had already opened ended
+% there empty, which set a blank line between the quotation and its
+% attribution.
+\newenvironment{apaquoteattribution}
+  {\par\raggedleft\setlength{\parindent}{0pt}}
+  {\par}
+
+% A dissertation indents half an inch and single spaces, and stands a double
+% space (24pt, baseline to baseline) between the quotation and the body on
+% either side, as typst does. The list's \topsep stood on top of that: above,
+% it was added to the quotation's single spacing, and below to the body's
+% double spacing, which set the quotation 28pt under the line above and the
+% next line 37pt under it (tests/layout-thesis.qmd). Single spacing is set
+% before the list adds its space, so \topsep is the difference between double
+% and single (\apathesisentrysep), and nothing is added below, where the
+% body's own spacing is a double space already.
+\makeatletter
 \newcommand{\apathesisquote}{%
   \renewenvironment{quote}
-    {\list{}{\leftmargin=0.5in\rightmargin=0.5in}%
-     \item\relax\apathesissingle}
-    {\endlist}}
+    {\list{}{\leftmargin=0.5in\rightmargin=0pt\parsep=0pt\partopsep=0pt
+       \apathesissingle\topsep=\apathesisentrysep}%
+     \item\relax}
+    {\@topsepadd=\z@\endlist}}
+\makeatother
 
 % Quarto writes the reference list as pandoc's CSLReferences list, whose
 % entries are the items of a LaTeX list. The spacing is appended to what that

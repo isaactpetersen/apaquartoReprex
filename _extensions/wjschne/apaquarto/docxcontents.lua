@@ -40,9 +40,6 @@ end
 
 local utilsapa = require("utilsapa")
 
-local figureword = "Figure"
-local tableword = "Table"
-
 -- toccolor, as six hex digits, or nil for the colour of the body text.
 --
 -- A run in these lists carries no character style -- pandoc's Hyperlink
@@ -55,56 +52,30 @@ local kEntryColour = nil
 -- How many levels of heading the contents lists, which is quarto's toc-depth.
 local kTocDepth = 3
 
+-- The headings of the three lists, in the document's language
+local kTitles = {
+  contents = "Table of Contents",
+  figures = "List of Figures",
+  tables = "List of Tables",
+}
+-- The identifier prefixes of every kind of float: fig and tbl, and the
+-- document's own, such as ill for an Illustration, which is listed with the
+-- figures as it is in the .pdf
+local kPrefixes = utilsapa.float_prefixes(nil)
+
 local function read_meta(meta)
-  if meta.language then
-    if meta.language["crossref-fig-title"] then
-      figureword = utilsapa.stringify(meta.language["crossref-fig-title"])
-    end
-    if meta.language["crossref-tbl-title"] then
-      tableword = utilsapa.stringify(meta.language["crossref-tbl-title"])
-    end
-  end
+  kTitles.contents = utilsapa.lang(meta, "toc-title-document", kTitles.contents)
+  kTitles.figures = utilsapa.lang(meta, "crossref-lof-title", kTitles.figures)
+  kTitles.tables = utilsapa.lang(meta, "crossref-lot-title", kTitles.tables)
+  kPrefixes = utilsapa.float_prefixes(meta)
   kEntryColour = utilsapa.colour_hex(meta["toccolor"])
   kTocDepth = utilsapa.toc_depth(meta, 3)
 end
 
-local function xml_escape(text)
-  return (text:gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"))
-end
-
+local xml_escape = utilsapa.xml_escape
 -- Inlines as word runs. A heading carries little more than words and the odd
 -- bold or italic, and anything else is written as the text it stringifies to.
-local function runs(inlines, bold, italic, colour)
-  local out = {}
-  for _, inline in ipairs(inlines) do
-    if inline.t == "Str" then
-      local properties = {}
-      if bold then properties[#properties + 1] = "<w:b/>" end
-      if italic then properties[#properties + 1] = "<w:i/>" end
-      if colour then
-        properties[#properties + 1] = [[<w:color w:val="]] .. colour .. [["/>]]
-      end
-      local rpr = ""
-      if #properties > 0 then
-        rpr = "<w:rPr>" .. table.concat(properties) .. "</w:rPr>"
-      end
-      out[#out + 1] = "<w:r>" .. rpr .. [[<w:t xml:space="preserve">]]
-        .. xml_escape(inline.text) .. "</w:t></w:r>"
-    elseif inline.t == "Space" or inline.t == "SoftBreak" then
-      out[#out + 1] = [[<w:r><w:t xml:space="preserve"> </w:t></w:r>]]
-    elseif inline.t == "Strong" then
-      out[#out + 1] = runs(inline.content, true, italic, colour)
-    elseif inline.t == "Emph" then
-      out[#out + 1] = runs(inline.content, bold, true, colour)
-    elseif inline.content then
-      out[#out + 1] = runs(inline.content, bold, italic, colour)
-    else
-      out[#out + 1] = "<w:r>" .. [[<w:t xml:space="preserve">]]
-        .. xml_escape(pandoc.utils.stringify(inline)) .. "</w:t></w:r>"
-    end
-  end
-  return table.concat(out)
-end
+local runs = utilsapa.docx_runs
 
 -- The name pandoc gives a heading's bookmark, which is not always the
 -- identifier. Word will not take a bookmark name longer than 40 characters,
@@ -113,10 +84,7 @@ end
 -- points at nothing: the heading "Tables and Figures Spanning Two Columns in
 -- Journal Mode" is 55 characters as an identifier, and every entry for it led
 -- nowhere until this.
-local function bookmark_name(identifier)
-  if #identifier <= 40 then return identifier end
-  return "X" .. pandoc.utils.sha1(identifier):sub(2)
-end
+local bookmark_name = utilsapa.docx_bookmark_name
 
 -- Bookmark ids of our own, well clear of the ones pandoc hands out.
 local bookmark = 90000
@@ -140,6 +108,36 @@ local function unlisted_heading(header)
   return pandoc.RawBlock("openxml", before ..
     "<w:p><w:pPr><w:pStyle w:val=\"ApaUnlistedHeading" .. level .. "\"/></w:pPr>" ..
     runs(header.content, false, false) .. "</w:p>" .. after)
+end
+
+-- A level-four or level-five heading, which APA runs in with the paragraph
+-- after it. apaheader.lua marks it; it is written here, at the end of the
+-- chain, so that quarto has resolved every reference to it by then.
+--
+-- The paragraph mark is hidden (a "style separator"), which is what lets the
+-- heading and the paragraph after it read as one line while the heading keeps
+-- its heading style for the table of contents. The heading's own bold and
+-- italic are kept, and it carries the bookmark pandoc would have given it, so
+-- that a link to it arrives.
+local kRunIn = "apa-runin"
+
+local function run_in_heading(header)
+  local level = header.level
+  if level < 1 then level = 1 end
+  if level > 9 then level = 9 end
+
+  local before, after = "", ""
+  if header.identifier ~= "" then
+    bookmark = bookmark + 1
+    before = [[<w:bookmarkStart w:id="]] .. bookmark .. [[" w:name="]]
+      .. xml_escape(bookmark_name(header.identifier)) .. [["/>]]
+    after = [[<w:bookmarkEnd w:id="]] .. bookmark .. [["/>]]
+  end
+
+  return pandoc.RawBlock("openxml", "<w:p><w:pPr><w:pStyle w:val=\"Heading"
+    .. level .. "\"/><w:rPr><w:vanish/><w:specVanish/></w:rPr></w:pPr>"
+    .. before .. runs(header.content, false, false) .. after
+    .. [[<w:r><w:t xml:space="preserve"> </w:t></w:r></w:p>]])
 end
 
 -- Every figure and table in the document, in the order they appear, as the
@@ -168,7 +166,7 @@ local function scan(blocks, figures, tables)
   for _, block in ipairs(blocks) do
     if block.t == "Div" then
       local id = block.identifier
-      if id:match("^fig%-") or id:match("^tbl%-") then
+      if utilsapa.is_float(id, kPrefixes) then
         local entry = float_entry(block)
         if entry then
           if id:match("^tbl%-") then tables:insert(entry) else figures:insert(entry) end
@@ -200,26 +198,14 @@ end
 local kTabPosition = 9360
 
 local function measure_text_width()
-  local refdoc = PANDOC_WRITER_OPTIONS.reference_doc
-  if not refdoc then return end
-  local f = io.open(refdoc, "rb")
-  if not f then return end
-  local data = f:read("a")
-  f:close()
-  local ok, archive = pcall(pandoc.zip.Archive, data)
-  if not ok then return end
-  for _, entry in ipairs(archive.entries) do
-    if entry.path == "word/document.xml" then
-      local xml = entry:contents()
-      local width = tonumber(xml:match('<w:pgSz[^>]-w:w="(%d+)"'))
-      local left = tonumber(xml:match('<w:pgMar[^>]-w:left="(%d+)"'))
-      local right = tonumber(xml:match('<w:pgMar[^>]-w:right="(%d+)"'))
-      if width and left and right then
-        local measure = width - left - right
-        if measure > 0 then kTabPosition = measure end
-      end
-      return
-    end
+  local xml = require("referencedoc").part("word/document.xml")
+  if not xml then return end
+  local width = tonumber(xml:match('<w:pgSz[^>]-w:w="(%d+)"'))
+  local left = tonumber(xml:match('<w:pgMar[^>]-w:left="(%d+)"'))
+  local right = tonumber(xml:match('<w:pgMar[^>]-w:right="(%d+)"'))
+  if width and left and right then
+    local measure = width - left - right
+    if measure > 0 then kTabPosition = measure end
   end
 end
 
@@ -276,15 +262,9 @@ end
 -- left to Word's own field, which takes the built-in heading styles and so
 -- takes the title page, the author note and the rest along with them.
 local function collect_headings(blocks)
-  local out = pandoc.List({})
-  pandoc.Blocks(blocks):walk {
-    Header = function(h)
-      if h.level > kTocDepth then return nil end
-      if h.classes:includes("unlisted") then return nil end
-      out:insert({ level = h.level, content = h.content, id = h.identifier })
-    end
-  }
-  return out
+  return utilsapa.contents_headings(blocks, kTocDepth):map(function(h)
+    return { level = h.level, content = h.content, id = h.identifier }
+  end)
 end
 
 -- One line of the contents: the heading, indented by its level, a leader, and
@@ -324,7 +304,7 @@ end
 local function build_contents(headings)
   local out = pandoc.List({})
   out:insert(unlisted_heading(
-    pandoc.Header(1, pandoc.Inlines({ pandoc.Str("Table of Contents") }),
+    pandoc.Header(1, pandoc.Inlines({ pandoc.Str(kTitles.contents) }),
       pandoc.Attr("", { "unlisted" }))))
   for _, entry in ipairs(headings) do
     out:insert(heading_paragraph(entry))
@@ -388,11 +368,11 @@ return {
           listed = true
           out:insert(page_break())
         elseif block.t == "Div" and block.classes:includes("list-of-figures") then
-          out:extend(build_list("List of Figures", figures))
+          out:extend(build_list(kTitles.figures, figures))
           listed = true
           out:insert(page_break())
         elseif block.t == "Div" and block.classes:includes("list-of-tables") then
-          out:extend(build_list("List of Tables", tables))
+          out:extend(build_list(kTitles.tables, tables))
           out:insert(page_break())
           listed = true
         elseif block.t == "Header" and block.classes:includes("unlisted") then
@@ -404,7 +384,13 @@ return {
 
       if listed then say_how_to_update() end
 
-      doc.blocks = out
+      -- Last, so that the contents above has been built from them as
+      -- headings. They may sit inside a div, an appendix for one.
+      doc.blocks = pandoc.Blocks(out):walk {
+        Header = function(h)
+          if h.classes:includes(kRunIn) then return run_in_heading(h) end
+        end
+      }
       return doc
     end
   }

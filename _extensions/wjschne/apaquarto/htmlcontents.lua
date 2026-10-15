@@ -11,21 +11,17 @@ if FORMAT ~= "html" then
   return
 end
 
+local utilsapa = require("utilsapa")
+
 -- Everything down to level three that is not one of the headings apaquarto
 -- marks unlisted -- the title, the author note, the abstract, the impact
 -- statement -- and not one the writer marked so either.
 local depth = 3
+-- The heading of the contents, in the document's language
+local contents_title = "Table of Contents"
 
 local function collect_headings(blocks)
-  local out = pandoc.List({})
-  pandoc.Blocks(blocks):walk {
-    Header = function(h)
-      if h.level > depth then return nil end
-      if h.classes:includes("unlisted") then return nil end
-      out:insert(h)
-    end
-  }
-  return out
+  return utilsapa.contents_headings(blocks, depth)
 end
 
 -- The entries as a nested list: each heading is a link to itself, and a
@@ -57,7 +53,7 @@ end
 -- has something to name.
 local function contents_blocks(headings)
   local out = pandoc.List({})
-  out:insert(pandoc.Header(1, pandoc.Inlines({ pandoc.Str("Table of Contents") }),
+  out:insert(pandoc.Header(1, pandoc.Inlines({ pandoc.Str(contents_title) }),
     pandoc.Attr("apaquarto-contents", { "unlisted", "unnumbered" })))
   if #headings > 0 then
     local list = build(headings, 1, headings[1].level)
@@ -68,7 +64,8 @@ local function contents_blocks(headings)
 end
 
 function Pandoc(doc)
-  depth = require("utilsapa").toc_depth(doc.meta, 3)
+  depth = utilsapa.toc_depth(doc.meta, 3)
+  contents_title = utilsapa.lang(doc.meta, "toc-title-document", contents_title)
   local headings = collect_headings(doc.blocks)
   local out = pandoc.List({})
   local found = false

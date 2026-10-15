@@ -6,11 +6,6 @@
 -- figure, and the note below. So the float is taken apart here and written
 -- back out in that order, using the commands apalatex.tex defines.
 --
--- This is the plain latex format's counterpart to apafloatlatex.lua, which
--- does the same job for apaquarto-pdf but has to talk the apa7 class round
--- first. Here there is no class to argue with and the whole of it is the
--- handful of blocks below.
---
 -- It runs at post-quarto, which is the last point at which a float is still a
 -- FloatRefTarget that can be read. By post-render the writer has already made
 -- its own figure out of it, which is why apanote.lua, which works on divs,
@@ -23,10 +18,13 @@ if FORMAT ~= "latex" then
   return
 end
 local utilsapa = require("utilsapa")
+local floatrecord = require("floatrecord")
 
 local figureword = "Figure"
 local tableword = "Table"
 local noteword = "Note"
+-- The notes of markdown tables as they were written, by identifier
+local tablenotes = {}
 local floatsintext = true
 local mode = "man"
 
@@ -46,18 +44,11 @@ local function meta(m)
       if name and env then customfloats[name] = env end
     end
   end
-  if m.documentmode then mode = utilsapa.stringify(m.documentmode) end
-  if m.language then
-    if m.language["crossref-fig-title"] then
-      figureword = utilsapa.stringify(m.language["crossref-fig-title"])
-    end
-    if m.language["crossref-tbl-title"] then
-      tableword = utilsapa.stringify(m.language["crossref-tbl-title"])
-    end
-    if m.language["figure-table-note"] then
-      noteword = utilsapa.stringify(m.language["figure-table-note"])
-    end
-  end
+  mode = utilsapa.mode(m)
+  tablenotes = utilsapa.table_notes(m)
+  figureword = utilsapa.lang(m, "crossref-fig-title", figureword)
+  tableword = utilsapa.lang(m, "crossref-tbl-title", tableword)
+  noteword = utilsapa.lang(m, "figure-table-note", noteword)
   if m.floatsintext ~= nil then
     floatsintext = utilsapa.stringify(m.floatsintext) ~= "false"
   end
@@ -83,7 +74,7 @@ end
 -- and leaves it as an attribute; quarto's own count stands in when it has not.
 local function number(float)
   local attributes = float.attributes or {}
-  local given = attributes.fignum or attributes.tblnum
+  local given = attributes.fignum or attributes.tblnum or attributes.floatnum
   if given and given ~= "" then return tostring(given) end
   if type(float.order) == "table" and float.order.order then
     return tostring(float.order.order)
@@ -104,31 +95,6 @@ local function label_inlines(float)
   if not n then return pandoc.Inlines({ pandoc.Str(word) }) end
   local prefix = (float.attributes or {}).prefix or ""
   return pandoc.Inlines({ pandoc.Str(word .. " " .. prefix .. n) })
-end
-
--- The title of the float. Quarto hands this over as a single Block for the
--- ordinary one-line caption, and as Blocks or Inlines elsewhere, so all three
--- are taken.
-local function caption_inlines(float)
-  local caption = float.caption_long
-  if not caption then return nil end
-  local kind = pandoc.utils.type(caption)
-  local inlines
-  if kind == "Inlines" then
-    inlines = caption
-  elseif kind == "Block" then
-    if caption.content then
-      inlines = caption.content
-    else
-      local ok, converted = pcall(pandoc.utils.blocks_to_inlines, { caption })
-      inlines = ok and converted or nil
-    end
-  elseif kind == "Blocks" then
-    local ok, converted = pcall(pandoc.utils.blocks_to_inlines, caption)
-    inlines = ok and converted or nil
-  end
-  if not inlines or #inlines == 0 then return nil end
-  return inlines
 end
 
 -- \label on its own refers to whatever counter was last stepped, which for a
@@ -167,21 +133,20 @@ end
 
 -- The note, as the same blocks every other format gets, so that a note reads
 -- the same whichever way the document is written out.
--- Every note this filter has written, so that the div around the float can be
--- told not to write it again.
-local written_notes = {}
 
-local function note_blocks(float)
-  local attributes = float.attributes or {}
+-- The attribute the div a float is written into carries, holding the note
+-- written into it, so that the cell the float came from can be told not to
+-- write it again. It is not the float's identifier, which would give pandoc
+-- a second \label to write.
+local kWrittenNote = "apa-written-note"
+
+local function note_blocks(record)
+  local attributes = record.float.attributes or {}
   -- floatwithsubfigure.lua writes the note of a float laid out in panels, and
   -- marks the float when it has, so that it is not written twice.
   if attributes["apa-note-written"] then return nil end
-  local note = attributes["apa-note"]
-  if not note or note == "" then return nil end
-  written_notes[note] = true
-  local prefix = pandoc.Para({
-    pandoc.Emph(pandoc.Str(noteword)), pandoc.Str("."), pandoc.Space() })
-  return utilsapa.make_note(note, prefix)
+  if not record.note then return nil end
+  return floatrecord.note_blocks(record.note, noteword)
 end
 
 -- Takes the apa-note off the cell a float came from, once the note has been
@@ -192,14 +157,28 @@ end
 -- inside the float, which is where APA wants it and where floatsintext can
 -- carry it; apanote.lua, which runs later and reads divs, then found the
 -- attribute still on the cell and wrote the note a second time underneath the
--- whole table. Only the note this filter has actually written is taken off, so
--- a note on a div holding no float is left for apanote.lua as before.
+-- whole table. Only a note written into a float inside this div is taken off,
+-- so a note on a div holding no float is left for apanote.lua as before,
+-- whatever it says.
 --
 -- The float is inside the div, so it has already been through processfloat by
 -- the time the div is reached.
 local function clear_written_note(div)
   local note = div.attributes and div.attributes["apa-note"]
-  if note and written_notes[note] then
+  if not note then return nil end
+  local written = false
+  div.content:walk {
+    Div = function(child)
+      local inner = child.attributes and child.attributes[kWrittenNote]
+      if inner == note then written = true end
+      -- The note of a markdown table is written as it was typed, and the
+      -- cell carries the flattened copy; the float carries both.
+      if child.attributes and child.attributes["apa-note-flat"] == note then
+        written = true
+      end
+    end
+  }
+  if written then
     div.attributes["apa-note"] = nil
     return div
   end
@@ -218,92 +197,20 @@ end
 local panelword = "Panel"
 local letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
--- The number of columns the float is asking for, or nil if it holds one thing.
---
--- floatwithsubfigure.lua has already been over the float and, for latex, has
--- written the layout out as an explicit matrix of rows so that the figure's
--- note can have a row to itself. So the matrix is read first and the plainer
--- layout-ncol only when there is none.
-local function panel_columns(float)
-  local a = float.attributes or {}
-  local explicit = a["layout"]
-  if explicit then
-    local ok, rows = pcall(quarto.json.decode, explicit)
-    if ok and type(rows) == "table" and #rows > 0 then
-      local first = rows[1]
-      if type(first) == "table" and #first > 0 then return #first end
-      return #rows
-    end
-  end
-  local ncol = tonumber(a["layout-ncol"])
-  if not ncol then
-    local nrow = tonumber(a["layout-nrow"])
-    if nrow and nrow > 0 then
-      ncol = math.ceil(#float.content / nrow)
-    end
-  end
-  if not ncol or ncol < 1 then return nil end
-  return ncol
-end
+-- The number of columns comes from floatrecord.columns, which reads first the
+-- explicit matrix floatwithsubfigure.lua has written for latex, so that the
+-- figure's note can have a row to itself.
 
 -- Whether a block is the note of the whole figure, which floatwithsubfigure.lua
 -- put among the panels for the formats that lay a float out from a matrix. Here
 -- the grid is built by hand, so the note is taken back out of it and set under
 -- the grid at the full width.
-local function is_figure_note(block)
-  local found = false
-  block:walk {
-    Div = function(d)
-      if d.classes:includes("FigureNote") then found = true end
-    end
-  }
-  return found
-end
+local is_figure_note = floatrecord.is_figure_note
 
 -- Whether a block holds nothing at all, which is what the padding cell added
 -- to fill out a short row comes to.
 local function is_empty(block)
   return pandoc.utils.stringify(block) == "" and not is_figure_note(block)
-end
-
--- The float a div is standing in for. A float is a custom node, and a walk of
--- the document sees only the div carrying its id. A panel that was given a
--- label of its own arrives this way; one written as a plain code chunk arrives
--- as a pandoc figure instead, which figure_inside finds.
-local function float_behind(block)
-  if block.t ~= "Div" then return nil end
-  local id = block.attributes and block.attributes["__quarto_custom_id"]
-  if not id then return nil end
-  local ok, float = pcall(function()
-    return quarto._quarto.ast.custom_node_data[tostring(id)]
-  end)
-  if not ok then return nil end
-  return float
-end
-
--- The first pandoc Figure inside a block, which is what a panel is once quarto
--- has laid the cell out.
-local function figure_inside(block)
-  -- A panel written as a markdown image is the figure, rather than holding
-  -- one, and a walk of it visits its children and never itself. Without this
-  -- such a panel kept the caption typst or latex writes under a figure of its
-  -- own instead of taking the caption up beside its panel label.
-  if block.t == "Figure" then return block end
-  local found = nil
-  block:walk {
-    Figure = function(fig)
-      if not found then found = fig end
-    end
-  }
-  return found
-end
-
-local function figure_caption(figure)
-  local caption = figure.caption and figure.caption.long
-  if not caption then return nil end
-  local ok, inlines = pcall(pandoc.utils.blocks_to_inlines, caption)
-  if not ok or not inlines or #inlines == 0 then return nil end
-  return inlines
 end
 
 -- One panel, written out as latex.
@@ -316,7 +223,7 @@ end
 --
 -- The panel's caption already carries its APA label, put there by
 -- floatwithsubfigure.lua, so none is added here.
-local function panel_latex(block, width, parentnumber, letter)
+local function panel_latex(panel, width, parentnumber, letter)
   local out = {}
   out[#out + 1] = string.format("\\begin{apapanel}{%.4f}%%", width)
 
@@ -326,22 +233,9 @@ local function panel_latex(block, width, parentnumber, letter)
   -- as a figure environment of its own, and latex sets a figure inside a
   -- figure one under the other whatever the layout asked for.
   local body = pandoc.List({})
-  local caption, content, identifier, note
-  local sub = float_behind(block)
-  if sub then
-    caption = caption_inlines(sub)
-    content = sub.content
-    identifier = sub.identifier
-    note = sub.attributes and sub.attributes["apa-note"]
-  else
-    local figure = figure_inside(block)
-    if figure then
-      caption = figure_caption(figure)
-      content = figure.content
-      identifier = figure.identifier
-    end
-    note = block.attributes and block.attributes["apa-note"]
-  end
+  local block = panel.block
+  local caption, content, identifier, note =
+    panel.caption, panel.content, panel.identifier, panel.note
 
   -- The caption already carries its APA panel label, put there by
   -- floatwithsubfigure.lua, so none is added here. It is followed by the same
@@ -371,10 +265,8 @@ local function panel_latex(block, width, parentnumber, letter)
   end
 
   if note and note ~= "" then
-    local prefix = pandoc.Para({
-      pandoc.Emph(pandoc.Str(noteword)), pandoc.Str("."), pandoc.Space() })
     body:insert(pandoc.RawBlock("latex", "\\begin{apapanelnote}"))
-    body:insert(utilsapa.make_note(note, prefix))
+    body:insert(floatrecord.note_blocks(note, noteword))
     body:insert(pandoc.RawBlock("latex", "\\end{apapanelnote}"))
   end
 
@@ -386,13 +278,15 @@ end
 
 -- Every panel, in rows of ncol minipages, and then the note of the whole
 -- figure under them.
-local function panel_grid(float, ncol)
-  local parentnumber = number(float)
+local function panel_grid(record)
+  local ncol = record.columns
+  local parentnumber = number(record.float)
   local notes = pandoc.List({})
   local pieces = {}
   local width = 0.98 / ncol
   local index = 0
-  for _, block in ipairs(float.content) do
+  for _, panel in ipairs(record.panels) do
+    local block = panel.block
     if is_figure_note(block) then
       notes:insert(block)
     elseif not is_empty(block) then
@@ -404,7 +298,7 @@ local function panel_grid(float, ncol)
           pieces[#pieces + 1] = "\\hfill"
         end
       end
-      pieces[#pieces + 1] = panel_latex(block, width, parentnumber,
+      pieces[#pieces + 1] = panel_latex(panel, width, parentnumber,
         letters:sub(index, index))
     end
   end
@@ -435,27 +329,53 @@ end
 -- left behind on the div would sit in the column under a figure that had gone
 -- elsewhere. Inside the float it travels with the figure, which is where the
 -- note of a table already is.
+--
+-- Every chunk's note comes down too, not only a spanning one's. Left on the
+-- cell, apanote.lua wrote it after \end{figure}: outside the float, so a
+-- figure that floats left it behind in the text, and one set [H] in place
+-- could still be parted from it by a page break, the figure ending one page
+-- and its note beginning the next (tests/layout-chunk-note.qmd). It is copied
+-- only into a cell holding one float, so that a chunk drawing several figures
+-- keeps its one note under them all, and only to that float, not to the
+-- panels inside it, which have notes of their own.
+local function cell_floats(blocks)
+  local found = {}
+  local function look(list)
+    for _, block in ipairs(list) do
+      local float = floatrecord.float_behind(block)
+      if float then
+        found[#found + 1] = float
+      elseif block.t == "Div" then
+        look(block.content)
+      end
+    end
+  end
+  look(blocks)
+  return found
+end
+
 local function push_cell_attributes(div)
   local a = div.attributes
   if not a then return nil end
   local span = a["apa-twocolumn"]
-  if not span or span == "" then return nil end
+  if span == "" then span = nil end
+  local note = a["apa-note"]
+  if not span and not note then return nil end
 
-  local moved = false
-  div.content:walk {
-    Div = function(child)
-      local float = float_behind(child)
-      if not float or not float.attributes then return nil end
-      if not float.attributes["apa-twocolumn"] then
-        float.attributes["apa-twocolumn"] = span
-        moved = true
-      end
-      if a["apa-note"] and not float.attributes["apa-note"] then
-        float.attributes["apa-note"] = a["apa-note"]
-      end
+  local floats = cell_floats(div.content)
+  local changed = false
+  for _, float in ipairs(floats) do
+    float.attributes = float.attributes or {}
+    if span and not float.attributes["apa-twocolumn"] then
+      float.attributes["apa-twocolumn"] = span
+      changed = true
     end
-  }
-  if moved then return div end
+    if note and #floats == 1 and not float.attributes["apa-note"] then
+      float.attributes["apa-note"] = note
+      changed = true
+    end
+  end
+  if changed then return div end
 end
 
 -- The identifier quarto leaves on a markdown table.
@@ -463,8 +383,8 @@ end
 -- The float carries it too, and this format writes the label itself, from the
 -- number the reader sees. Pandoc's latex writer turns an identified table into
 -- a longtable that opens with a \caption and a \label of its own: the
--- caption is empty, apacaption.lua having lifted the title out of it long
--- before, but \caption still steps the table counter and sets an empty
+-- caption is empty, quarto having moved the title onto the float, but
+-- \caption still steps the table counter and sets an empty
 -- caption line above the rules, and the second \label makes the identifier
 -- multiply defined, so a reference to it could resolve to either. The one on
 -- the table is taken off and the float's own is left.
@@ -479,12 +399,56 @@ local function strip_table_identifier(blocks)
   }
 end
 
+-- Whether a table in the text flow is short enough to be kept whole.
+--
+-- A longtable may break after any row, and a short one was broken where it
+-- happened to fall: the four-row table in example.qmd set its title, head and
+-- first row at the foot of one page and the other three under a repeated head
+-- on the next. A short table is set as a tabular instead, one box, and moved
+-- whole to the next page with its title when it does not fit
+-- (tests/layout-table-whole.qmd).
+--
+-- Only a table pandoc writes is counted, a markdown or knitr::kable one,
+-- since its rows are there to count; a table a package writes in latex of
+-- its own (flextable, kableExtra) is left as it was. Fifteen rows, double
+-- spaced, with the title, caption and head, come to about three quarters of
+-- a page; a table longer than that is better broken over pages than pushed
+-- whole to the next one.
+local short_table_rows = 15
+
+-- Whether a float holds one table pandoc writes, and how many rows it has.
+local function native_table(content)
+  local tables, rows, raw_table = 0, 0, false
+  pandoc.Blocks(floatrecord.as_blocks(content)):walk {
+    Table = function(tbl)
+      tables = tables + 1
+      rows = rows + #tbl.head.rows + #tbl.foot.rows
+      for _, body in ipairs(tbl.bodies) do
+        rows = rows + #body.head + #body.body
+      end
+    end,
+    RawBlock = function(block)
+      if block.format:match("latex") or block.format:match("tex") then
+        raw_table = true
+      end
+    end,
+  }
+  return tables == 1 and not raw_table, rows
+end
+
+local function short_table(content)
+  local native, rows = native_table(content)
+  return native and rows <= short_table_rows
+end
+
 local function processfloat(float)
   -- A panel of a laid-out figure. It is left as it is so that the figure it
   -- belongs to can take it apart and put it in the grid; written out here it
   -- would become a figure environment of its own.
   if float.parent_id then return nil end
 
+  local record = floatrecord.read(float,
+    { tablenotes = tablenotes, read_matrix = true })
   local istable = float.type == "Table"
   local environment = istable and "table" or "figure"
 
@@ -525,20 +489,83 @@ local function processfloat(float)
   -- Journal mode keeps the float. A longtable cannot run in two columns at
   -- all, so a table there is set as a tabular, which is one box again; and a
   -- table asking to span both columns needs a float to span with.
-  local floated = (not istable) or mode == "jou"
+  --
+  -- A figure asked to stay where it was written (floatsintext, the [H] it
+  -- would otherwise get) is set in the flow as well. An [H] float is one box
+  -- that cannot break, and its note is inside it since #169: a figure and note
+  -- together taller than the page had the end of the note set past the foot
+  -- of the page and cut off (#171). In the flow the title, caption and
+  -- picture are kept together and with the start of the note, and a long note
+  -- runs on to the next page. A figure left to float keeps its float, and
+  -- its note inside it, since the two move together.
+  local floated = mode == "jou" or (not istable and not floatsintext)
+  local inflow_figure = (not floated) and (not istable)
+  -- A short table is kept whole: see short_table above.
+  local short = (not floated) and istable and short_table(record.content)
+  -- A table pandoc writes, in the flow, takes the table spacing.
+  local spaced = (not floated) and istable and native_table(record.content)
 
   local blocks = pandoc.List({})
   if floated then
     blocks:insert(raw("\\begin{" .. environment .. "}" .. placement))
   else
-    -- The space a float would have left around itself.
-    blocks:insert(raw("\\par\\addvspace{\\baselineskip}"))
+    -- The space a float would have left around itself, and the group a float
+    -- would have been. Without it whatever a table package declares ahead of
+    -- its tabular is never ended: the bare \centering kableExtra writes set
+    -- every paragraph after the table centred.
+    --
+    -- The space is a blank line of the text's own spacing, above and below,
+    -- for a figure as for a table: "If text appears on the same page as a
+    -- table or figure, add a double-spaced blank line between the text and
+    -- the table or figure" (APA). typst sets the same (floatspace in
+    -- typst-template.typ; tests/layout-float-space.qmd).
+    blocks:insert(raw("\\par\\addvspace{\\baselineskip}\\begingroup"))
+    if istable then
+      -- A table is set flush left, as APA sets one and as .docx and .html
+      -- do; longtable centres one by default, between \LTleft and \LTright
+      -- of \fill. A table package that asks for its own placement, as
+      -- flextable's [c] does, still gets it. And no \LTpost, the 12pt
+      -- longtable leaves under a table: the note under it is spaced by
+      -- \apatablenoteskip alone, and the space after the whole float by the
+      -- \addvspace below. With both, a note stood a line and a half under
+      -- the table's last row (tests/layout-float-space.qmd).
+      --
+      -- Nor the half em of \apatablenotegap, which a journal's table needs
+      -- and this one does not: the note is the next line under the table,
+      -- its capitals 15.5pt under the rule, as in typst. Its baseline stands
+      -- a line under the rule, which leaves half a point more, taken back
+      -- here (tests/layout-table-rules.qmd).
+      blocks:insert(raw("\\setlength{\\LTleft}{0pt}\\setlength{\\LTright}{\\fill}\\setlength{\\LTpost}{0pt}\\setlength{\\apatablenotegap}{-0.5pt}"))
+      -- The space between the caption and the table's top rule, as typst
+      -- leaves it: 15.75pt from the caption's baseline to the rule, measured
+      -- in the ink of both (tests/layout-table-rules.qmd). longtable's own
+      -- is \bigskipamount, 12pt that could stretch or shrink by 4 with the
+      -- page.
+      blocks:insert(raw("\\setlength{\\LTpre}{16pt}"))
+      -- A short table is set as a tabular, one box that cannot break, with
+      -- no indent before it, as journal mode sets every table.
+      if short then
+        blocks:insert(raw("\\apalongtableastabular\\setlength{\\parindent}{0pt}"))
+      end
+    end
+    if inflow_figure then
+      -- A float sets its contents without a paragraph indent, and a figure's
+      -- picture is a paragraph of its own; in the flow it would be indented.
+      blocks:insert(raw("\\setlength{\\parindent}{0pt}"))
+      -- The panels of a figure with sub-figures are labelled with
+      -- \subcaption, by quarto when the figure has no layout, which stops
+      -- the render outside a float. This says the group is a figure.
+      blocks:insert(raw("\\captionsetup{type=figure}"))
+    end
+    -- The title and caption, kept with the start of the table, or with the
+    -- picture and the start of the note: see \apatablekeep in apalatex.tex.
+    blocks:insert(raw("\\apatablekeep"))
   end
 
   blocks:extend(label_blocks(float))
   blocks:insert(command("apafloattitle", label_inlines(float)))
 
-  local caption = caption_inlines(float)
+  local caption = record.caption
   if caption then
     blocks:insert(command("apafloatcaption", caption))
     if not istable then
@@ -565,22 +592,67 @@ local function processfloat(float)
   addline:extend(entry)
   addline:insert(pandoc.RawInline("latex", "}"))
   blocks:insert(pandoc.Plain(addline))
-
-  local ncol = panel_columns(float)
-  local panelnotes = nil
-  if ncol then
-    local grid, notes = panel_grid(float, ncol)
-    blocks:extend(grid)
-    panelnotes = notes
-  elseif float.content then
-    if pandoc.utils.type(float.content) == "Blocks" then
-      blocks:extend(strip_table_identifier(float.content))
-    else
-      blocks:extend(strip_table_identifier(pandoc.Blocks({ float.content })))
-    end
+  -- A short table's box holds the table as well, and ends after it.
+  if not floated and istable and not short then
+    blocks:insert(raw("\\apatablekeepend"))
   end
 
-  local note = note_blocks(float)
+  -- The table spaced from the caption's baseline, not from the foot of its
+  -- last line: TeX puts a table under the depth of the line above it, so a
+  -- caption whose last line had a p or a g in it stood 2pt further off the
+  -- table than one that had none (tests/layout-table-rules.qmd).
+  if not floated and istable then
+    blocks:insert(raw("\\par\\ifdim\\prevdepth>0pt\\vskip-\\prevdepth\\prevdepth=0pt\\fi"))
+  end
+
+  -- The space longtable leaves above a table, \LTpre, which a tabular does
+  -- not: a short table stands under its caption as a long one does. Less
+  -- \lineskip, the point TeX puts between a line and a box as tall as a
+  -- tabular, which a longtable's first row, a rule, is not given.
+  if short then
+    blocks:insert(raw("\\par\\vspace{\\dimexpr\\LTpre-\\lineskip\\relax}"))
+  end
+
+  local panelnotes = nil
+  if record.columns then
+    local grid, notes = panel_grid(record)
+    blocks:extend(grid)
+    panelnotes = notes
+  else
+    -- Its rows at the table spacing, double unless table-spacing asks for
+    -- less, in a group of their own so that the note under the table keeps
+    -- the body's (\apatablespacing in apalatex.tex).
+    if spaced then blocks:insert(raw("\\begingroup\\apatablespacing")) end
+    blocks:extend(strip_table_identifier(record.content))
+    if spaced then blocks:insert(raw("\\par\\endgroup")) end
+  end
+
+  local note = note_blocks(record)
+  if short then
+    -- A tabular is one box on a line of its own, hanging below that line
+    -- by most of its height, and the line under it is spaced from that
+    -- depth: the note came within a point or two of the rule. Measured from
+    -- the rule instead, as it is under a longtable, the note is the next
+    -- line under the table.
+    blocks:insert(raw("\\par\\prevdepth=0pt"))
+  end
+  if inflow_figure or short then
+    -- The box ends with the picture, or with a short table. With a note to
+    -- follow, it asks for room for the note's first two lines as well, and
+    -- no break is allowed between the picture or table and the note.
+    if note or panelnotes then
+      blocks:insert(raw("\\apafigurekeepend"))
+    else
+      blocks:insert(raw("\\apakeepend{0pt}"))
+    end
+  end
+  local out = pandoc.Div({})
+  if note then
+    out.attributes[kWrittenNote] = record.note
+    if (float.attributes or {})["apa-note"] then
+      out.attributes["apa-note-flat"] = float.attributes["apa-note"]
+    end
+  end
   if note then
     -- A table's note sits under the rule that closes the table, and needs
     -- the rule cleared. A figure's note follows the picture and does not.
@@ -596,9 +668,10 @@ local function processfloat(float)
   if floated then
     blocks:insert(raw("\\end{" .. environment .. "}"))
   else
-    blocks:insert(raw("\\par\\addvspace{\\baselineskip}"))
+    blocks:insert(raw("\\par\\endgroup\\addvspace{\\baselineskip}"))
   end
-  return pandoc.Div(blocks)
+  out.content = blocks
+  return out
 end
 
 return {

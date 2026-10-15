@@ -35,9 +35,14 @@
 --- the binding in place for Word and gives every other viewer something to
 --- show.
 ---
+--- The link colours are written here too: a character style for each of
+--- linkcolor, urlcolor, citecolor and filecolor, which docxlinkcolor.lua
+--- hands to the links themselves.
+---
 --- Pandoc reads the reference document when it writes the output, which
 --- happens after all filters have run, so patching the reference document
---- here is picked up by the writer.
+--- here is picked up by the writer. This is the one filter that writes it,
+--- once a render, with everything the render asks for; see referencedoc.lua.
 ---
 --- The fonts, page size, line numbering and running-head control the
 --- reference document shipped with are recorded in xml comments the first
@@ -77,9 +82,9 @@ local paper_sizes = {
   tabloid = {15840, 24480, 3}
 }
 
-local function trim(s)
-  return (s:gsub("^%s*(.-)%s*$", "%1"))
-end
+local utilsapa = require("utilsapa")
+local referencedoc = require("referencedoc")
+local trim = utilsapa.trim
 
 --- mainfont and monofont can be a stack of fonts (the html format sets
 --- "Times, Times New Roman, serif"). Word wants a single font, and the
@@ -105,22 +110,6 @@ end
 
 local function make_marker(key, value)
   return "<!-- apaquarto-original-" .. key .. ": " .. value .. " -->"
-end
-
-local function read_file(path)
-  local f = io.open(path, "rb")
-  if not f then return nil end
-  local data = f:read("a")
-  f:close()
-  return data
-end
-
-local function write_file(path, data)
-  local f = io.open(path, "wb")
-  if not f then return false end
-  f:write(data)
-  f:close()
-  return true
 end
 
 --- Set the typeface of the <a:latin/> element in majorFont and minorFont
@@ -200,7 +189,7 @@ end
 --- sets the body double spaced, which is what Normal carries, but a block
 --- quotation, a note and the entries of the reference list single spaced, with
 --- a double space between one entry and the next and the whole of a quotation
---- half an inch in from both margins. A line of twelve point Times is 13.8
+--- half an inch in on the left. A line of twelve point Times is 13.8
 --- points deep in word, so the 276 twips under a paragraph are the second line
 --- that makes the gap between two of them a double space.
 ---
@@ -217,7 +206,7 @@ end
 --- kept in a marker, and every other mode puts it back.
 local single_spaced = '<w:spacing w:after="276" w:line="240" w:lineRule="auto"/>'
 local thesis_properties = {
-  BlockText = single_spaced .. '<w:ind w:left="720" w:right="720" w:firstLine="0"/>',
+  BlockText = single_spaced .. '<w:ind w:left="720" w:firstLine="0"/>',
   NextBlockText = single_spaced .. '<w:ind w:firstLine="720"/>',
   Bibliography = single_spaced .. '<w:ind w:left="720" w:hanging="720"/>',
   --- A numbered note, whose first line the handbook asks to be indented half
@@ -305,6 +294,63 @@ local function patch_styles(styles, monofont, thesis)
   return newstyles:sub(1, last) .. markers .. newstyles:sub(last + 1)
 end
 
+--- The line spacing of a table's rows, from table-spacing, double unless it
+--- or a journal or doc mode asks otherwise. The spacing is a margin above
+--- and below every cell, with no paragraph space: pandoc gives every
+--- paragraph in a cell the Compact style, which also styles a tight list, so
+--- the spacing cannot be the paragraph's, and a cell's wrapped lines stay
+--- single spaced. The reference document's Table style sets the rows double
+--- spaced, seven points above and below a cell's text, half of what Word's
+--- 27.6pt adds to its 13.8pt single line. One-and-a-half spacing is half of
+--- what 20.7pt adds, and single spacing no margin at all.
+---
+--- The head row has margins of its own, which stand its text off the rules
+--- above and below it as far as booktabs does in the .pdf and typst: 9.3pt
+--- from the top rule to its capitals and 6.9pt from its baseline to the rule
+--- under it at double spacing (186 and 138 twips in the reference document),
+--- 5.25pt each at one-and-a-half, and 2.5 and 4.6pt at single, measured
+--- against the .pdf (tests/layout-table-rules.qmd). A body row's margins
+--- cannot do the same at the rules, since Word's table style can tell the
+--- head row and the last row from the others but pandoc marks no table as
+--- having a last row.
+---
+--- The Table style as the reference document had it is kept in a marker, and
+--- a double-spaced render puts it back (tests/layout-table-spacing-single.qmd).
+local table_margins = {
+  single = { cell = 0, head_top = 50, head_bottom = 92 },
+  onehalf = { cell = 69, head_top = 105, head_bottom = 105 },
+}
+
+local function set_margins(xml, element, top, bottom)
+  return (xml:gsub("(<w:" .. element .. ">.-</w:" .. element .. ">)", function(margins)
+    margins = margins:gsub("<w:top[%s/][^>]*>", '<w:top w:w="' .. top .. '" w:type="dxa"/>')
+    margins = margins:gsub("<w:bottom[%s/][^>]*>", '<w:bottom w:w="' .. bottom .. '" w:type="dxa"/>')
+    return margins
+  end))
+end
+
+local function patch_table_spacing(styles, spacing)
+  local original = get_marker(styles, "tablestyle")
+  styles = strip_marker(styles, "tablestyle")
+  local first, last = styles:find('<w:style [^>]-w:styleId="Table"[^>]*>.-</w:style>')
+  if not first then return styles end
+  local current = styles:sub(first, last)
+  original = original or current
+  local wanted = original
+  local margins = table_margins[spacing]
+  if margins then
+    wanted = set_margins(wanted, "tblCellMar", margins.cell, margins.cell)
+    wanted = set_margins(wanted, "tcMar", margins.head_top, margins.head_bottom)
+  end
+  styles = styles:sub(1, first - 1) .. wanted .. styles:sub(last + 1)
+  if wanted ~= original then
+    local _, open = styles:find("<w:styles%s[^>]*>")
+    styles = styles:sub(1, open) .. make_marker("tablestyle", original) ..
+      styles:sub(open + 1)
+  end
+  return styles
+end
+
 --- papersize is written in several ways: a4, A4, a4paper, letter, us-letter
 local function paper_key(papersize)
   local name = papersize:lower():gsub("[^%a%d]", "")
@@ -340,8 +386,8 @@ end
 --- The margins, which live in the same section properties as the page size
 --- and which pandoc takes from the reference document just as it does the
 --- size. documentmode: thesis asks for the ones the Graduate School's
---- handbook sets; every other mode keeps whatever the reference document
---- shipped with.
+--- handbook sets, and a document can ask for its own with margin; a side
+--- neither names keeps whatever the reference document shipped with.
 local function set_margins(document, margins)
   local stripped = strip_marker(document, "margins")
   local first, last = stripped:find("<w:pgMar[^>]*>")
@@ -354,12 +400,14 @@ local function set_margins(document, margins)
   local attributes = original
   if margins then
     for _, side in ipairs({ "top", "right", "bottom", "left" }) do
-      local twips = math.floor(margins[side] * 1440 + 0.5)
-      local name = "w:" .. side
-      if attributes:find(name .. '="', 1, true) then
-        attributes = attributes:gsub(name .. '="[^"]*"', name .. '="' .. twips .. '"')
-      else
-        attributes = attributes .. " " .. name .. '="' .. twips .. '"'
+      if margins[side] then
+        local twips = math.floor(margins[side] * 1440 + 0.5)
+        local name = "w:" .. side
+        if attributes:find(name .. '="', 1, true) then
+          attributes = attributes:gsub(name .. '="[^"]*"', name .. '="' .. twips .. '"')
+        else
+          attributes = attributes .. " " .. name .. '="' .. twips .. '"'
+        end
       end
     end
   end
@@ -592,21 +640,26 @@ local function patch_header(header, runninghead)
 end
 
 function Pandoc(doc)
-  local refdoc = PANDOC_WRITER_OPTIONS.reference_doc
-  if not refdoc then return nil end
+  if not PANDOC_WRITER_OPTIONS.reference_doc then return nil end
 
   local mainfont = clean_font(doc.meta.mainfont)
   local monofont = clean_font(doc.meta.monofont)
   local papersize = doc.meta.papersize and
     trim(pandoc.utils.stringify(doc.meta.papersize)) or ""
-  local linenumbers = doc.meta["numbered-lines"] ~= nil and
-    pandoc.utils.stringify(doc.meta["numbered-lines"]) == "true"
+  local linenumbers = utilsapa.flag(doc.meta, "numbered-lines")
   --- A dissertation is bound at the left and wants a wider margin there, and
   --- its title page carries no running head. Both belong to the section, and
   --- the section is the reference document's.
-  local thesis = doc.meta.documentmode ~= nil and
-    pandoc.utils.stringify(doc.meta.documentmode) == "thesis"
-  local margins = thesis and require("utilsapa").thesis_margins or nil
+  local thesis = utilsapa.mode(doc.meta) == "thesis"
+  --- A document's own margin field is laid over that, side by side, so a
+  --- side it does not name keeps the mode's margin, or the reference
+  --- document's in every mode but thesis.
+  local margins = nil
+  if thesis then
+    margins = utilsapa.thesis_body_margins(doc.meta, true)
+  else
+    margins = utilsapa.margin_sides(doc.meta.margin, true)
+  end
   --- The body of a dissertation begins again at 1, in arabic; the front
   --- matter before it is in lower-case roman, which the title page's own
   --- section sets.
@@ -622,23 +675,19 @@ function Pandoc(doc)
   --- edition drops the running head from student work, and the control is
   --- emptied rather than left out so that the number beside it stays.
   --- Issue #166.
-  if doc.meta.documentmode ~= nil
-      and pandoc.utils.stringify(doc.meta.documentmode) == "stu" then
+  if utilsapa.mode(doc.meta) == "stu" then
     runninghead = ""
   end
 
-  local data = read_file(refdoc)
-  if not data then
-    quarto.log.warning("Could not read reference document " .. refdoc ..
-      ", so mainfont, monofont, papersize and numbered-lines were not applied.")
-    return nil
-  end
+  --- The colour each of linkcolor, urlcolor, citecolor and filecolor asks
+  --- for, which become character styles in word/styles.xml.
+  local linkcolours = referencedoc.link_colours(doc.meta)
 
-  local ok, archive = pcall(pandoc.zip.Archive, data)
-  if not ok then
-    quarto.log.warning("Could not read reference document " .. refdoc ..
-      " as a docx file, so mainfont, monofont, papersize and numbered-lines" ..
-      " were not applied.")
+  local archive, refdoc = referencedoc.read()
+  if not archive then
+    quarto.log.warning("Reference document: " .. refdoc ..
+      ", so mainfont, monofont, papersize, numbered-lines and the link" ..
+      " colours were not applied.")
     return nil
   end
 
@@ -673,7 +722,14 @@ function Pandoc(doc)
       patched = patch_styles(xml, monofont, thesis)
       if not patched then
         quarto.log.warning("Reference document " .. refdoc ..
-          " has no styles, monofont was not applied.")
+          " has no styles, monofont and the link colours were not applied.")
+      else
+        patched = referencedoc.patch_link_styles(patched, linkcolours)
+        --- The style a quotation's dash attribution takes, for a document
+        --- that has one (apaquote.lua).
+        patched = referencedoc.patch_attribution_style(patched,
+          utilsapa.flag(doc.meta, "apa-quote-attribution"))
+        patched = patch_table_spacing(patched, utilsapa.table_spacing(doc.meta))
       end
     elseif entry.path == document_path then
       xml = entry:contents()
@@ -701,9 +757,10 @@ function Pandoc(doc)
   if not changed then return nil end
 
   archive.entries = newentries
-  if not write_file(refdoc, archive:bytestring()) then
+  if not referencedoc.write(archive) then
     quarto.log.warning("Could not write reference document " .. refdoc ..
-      ", so mainfont, monofont, papersize and numbered-lines were not applied.")
+      ", so mainfont, monofont, papersize, numbered-lines and the link" ..
+      " colours were not applied.")
   end
 
   return nil

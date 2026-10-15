@@ -180,32 +180,12 @@ return {
         end
       end
 
-      if meta.language then
-        -- Is there another word for reference section?
-        if meta.language["section-title-references"] then
-          referenceword = pandoc.utils.stringify(meta.language["section-title-references"])
-        end
-        -- Is there another phrase for masked references?
-        if meta.language["citation-masked-author"] then
-          maskedauthor = pandoc.utils.stringify(meta.language["citation-masked-author"])
-        end
-        -- Is there another phrase for masked titles?
-        if meta.language["citation-masked-title"] then
-          maskedtitle = pandoc.utils.stringify(meta.language["citation-masked-title"])
-        end
-        -- Is there another phrase for masked sources?
-        if meta.language["citation-masked-source"] then
-          maskedsource = pandoc.utils.stringify(meta.language["citation-masked-source"])
-        end
-        -- Is there another phrase for masked dates?
-        if meta.language["citation-masked-date"] then
-          maskeddate = pandoc.utils.stringify(meta.language["citation-masked-date"])
-        end
-        -- Is there another phrase for meta-analysis reference explanation?
-        if meta.language["references-meta-analysis"] then
-          metareferencesentence = pandoc.utils.stringify(meta.language["references-meta-analysis"])
-        end
-      end
+      referenceword = utilsapa.lang(meta, "section-title-references", referenceword)
+      maskedauthor = utilsapa.lang(meta, "citation-masked-author", maskedauthor)
+      maskedtitle = utilsapa.lang(meta, "citation-masked-title", maskedtitle)
+      maskeddate = utilsapa.lang(meta, "citation-masked-date", maskeddate)
+      metareferencesentence = utilsapa.lang(meta, "references-meta-analysis",
+        metareferencesentence)
 
       return meta
     end
@@ -239,7 +219,7 @@ return {
       drop_blank_bibliography(doc.meta)
       fix_blank_csl(doc.meta)
       doc.meta.references = pandoc.utils.references(doc)
-      maskedref = {
+      local maskedref = {
         author = pandoc.List:new({ { literal = maskedauthor } }),
         id = "maskedreference",
         issued = { literal = maskeddate },

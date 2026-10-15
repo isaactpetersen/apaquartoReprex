@@ -74,41 +74,11 @@ end
 -- the caption looking as it did when pandoc was writing it.
 local kCaptionStyle = "ImageCaption"
 
-local function xml_escape(text)
-  return (text:gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"))
-end
-
+local xml_escape = require("utilsapa").xml_escape
 -- Inlines as word runs. Only the marking a caption is likely to carry is
 -- understood; anything else is written as its text, which is what pandoc's own
 -- stringify would give.
-local function runs(inlines, bold, italic)
-  local out = {}
-  for _, inline in ipairs(inlines) do
-    if inline.t == "Str" then
-      local properties = {}
-      if bold then properties[#properties + 1] = "<w:b/>" end
-      if italic then properties[#properties + 1] = "<w:i/>" end
-      local rpr = ""
-      if #properties > 0 then
-        rpr = "<w:rPr>" .. table.concat(properties) .. "</w:rPr>"
-      end
-      out[#out + 1] = "<w:r>" .. rpr .. '<w:t xml:space="preserve">'
-        .. xml_escape(inline.text) .. "</w:t></w:r>"
-    elseif inline.t == "Space" or inline.t == "SoftBreak" then
-      out[#out + 1] = '<w:r><w:t xml:space="preserve"> </w:t></w:r>'
-    elseif inline.t == "Strong" then
-      out[#out + 1] = runs(inline.content, true, italic)
-    elseif inline.t == "Emph" then
-      out[#out + 1] = runs(inline.content, bold, true)
-    elseif inline.content then
-      out[#out + 1] = runs(inline.content, bold, italic)
-    else
-      out[#out + 1] = "<w:r>" .. '<w:t xml:space="preserve">'
-        .. xml_escape(pandoc.utils.stringify(inline)) .. "</w:t></w:r>"
-    end
-  end
-  return table.concat(out)
-end
+local runs = require("utilsapa").docx_runs
 
 local function caption_paragraph(inlines)
   return pandoc.RawBlock("openxml",
@@ -260,13 +230,111 @@ local function merge_adjacent_tables(blocks)
   return out
 end
 
+-- Whether a table is the grid quarto lays panels out in, rather than a table
+-- of data. A grid holds pictures, or the tables of a table set out in panels.
+--
+-- apafloat.lua marks tables as well as figures FigureWithNote or
+-- FigureWithoutNote, so a captioned markdown table arrives here too. Given
+-- FigureLayout, it lost the reference document's Table style and every rule
+-- APA draws in a table, and word set it bare (wjschne/apaquarto#168). A walk
+-- of a table sees what is inside it and never the table itself.
+local function is_layout_table(block)
+  local found = false
+  block:walk {
+    Image = function() found = true end,
+    Figure = function() found = true end,
+    Table = function() found = true end,
+  }
+  return found
+end
+
+-- A panel quarto left outside the grid it built for it.
+--
+-- A table laid out in panels, each panel a table with a label of its own,
+-- comes out of quarto as a grid with the first panel in its first cell and
+-- the other cells empty, and every later panel written after the grid as a
+-- div of its own: in word the right-hand table was set under the grid
+-- rather than beside the left one (tests/docx-table-style.qmd). Each such
+-- panel is put back in the next empty cell. A panel is a div with an
+-- identifier holding a table or a picture; the float's title, caption and
+-- note are divs of their own classes and stay where they are.
+local function is_panel(block)
+  if block.t ~= "Div" or not block.identifier or block.identifier == "" then
+    return false
+  end
+  if block.classes:includes("FigureTitle") or block.classes:includes("Caption")
+      or is_note(block) then
+    return false
+  end
+  local found = false
+  block:walk {
+    Table = function() found = true end,
+    Image = function() found = true end,
+    Figure = function() found = true end,
+  }
+  return found
+end
+
+-- The cells quarto left for panels it wrote elsewhere. Such a cell holds a
+-- no-break space, which %s does not match, so it is stripped here as well.
+local function empty_cells(tbl)
+  local cells = pandoc.List({})
+  for _, body in ipairs(tbl.bodies) do
+    for _, row in ipairs(body.body) do
+      for _, cell in ipairs(row.cells) do
+        local blocks = pandoc.Blocks(cell.contents)
+        local found = false
+        blocks:walk {
+          Image = function() found = true end,
+          Figure = function() found = true end,
+          Table = function() found = true end,
+          RawBlock = function() found = true end,
+        }
+        local text = pandoc.utils.stringify(blocks):gsub("\u{A0}", ""):gsub("%s", "")
+        if not found and text == "" then cells:insert(cell) end
+      end
+    end
+  end
+  return cells
+end
+
+local function gather_panels(blocks)
+  local out = pandoc.List({})
+  local i = 1
+  while i <= #blocks do
+    local block = blocks[i]
+    out:insert(block)
+    i = i + 1
+    if block.t == "Table" and is_layout_table(block) then
+      local empty = empty_cells(block)
+      -- Take the panels that follow, stepping over the empty paragraphs
+      -- quarto puts between blocks, for as long as there are cells to put
+      -- them in.
+      local j, filled = i, 0
+      while j <= #blocks and filled < #empty do
+        if is_separator(blocks[j]) then
+          j = j + 1
+        elseif is_panel(blocks[j]) then
+          filled = filled + 1
+          empty[filled].contents = pandoc.Blocks({ blocks[j] })
+          j = j + 1
+        else
+          break
+        end
+      end
+      if filled > 0 then i = j end
+    end
+  end
+  return out
+end
+
 local function rebuild(float)
   local titles = pandoc.List({})
   local body = pandoc.List({})
   local notes = pandoc.List({})
   local laid_out = false
 
-  for _, block in ipairs(merge_adjacent_tables(float.content)) do
+  for _, block in ipairs(merge_adjacent_tables(gather_panels(float.content))) do
     if block.t == "Div" and (block.classes:includes("FigureTitle")
         or block.classes:includes("Caption")) then
       titles:insert(block)
@@ -278,7 +346,7 @@ local function rebuild(float)
           note.attributes["custom-style"] = kNoteStyle
           notes:insert(note)
         end
-      elseif block.t == "Table" then
+      elseif block.t == "Table" and is_layout_table(block) then
         laid_out = true
         local table_block = captions_above(style_panel_notes(block))
         table_block.attr = table_block.attr or pandoc.Attr()
