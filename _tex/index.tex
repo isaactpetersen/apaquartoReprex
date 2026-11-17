@@ -3,6 +3,10 @@
   tagging=on,
   lang=en-US,
   xmp=true}
+\ExplSyntaxOn
+\cs_if_exist:NF \komascript_documentmetadata_test:
+  { \cs_new:Npn \komascript_documentmetadata_test: { } }
+\ExplSyntaxOff
 % Options for packages loaded elsewhere
 % Options for packages loaded elsewhere
 \PassOptionsToPackage{unicode}{hyperref}
